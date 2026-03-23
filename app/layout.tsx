@@ -1,18 +1,16 @@
 import type { Metadata } from 'next'
-import { Inter } from 'next/font/google'
+import type { ReactNode } from 'react'
 import './globals.css'
-
-const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
   title: 'UnidosPorTi - Tu guia gratuita en España',
   description: 'Plataforma gratuita para migrantes latinos en España',
 }
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="es">
-      <body className={inter.className}>{children}</body>
+      <body>{children}</body>
     </html>
   )
 }
