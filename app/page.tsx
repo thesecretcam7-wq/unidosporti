@@ -17,52 +17,34 @@ const RUTAS = {
 } as const
 
 const btn: React.CSSProperties = { width: '100%', background: '#1B4FCC', color: '#fff', border: 'none', borderRadius: 12, padding: '14px 0', fontSize: 15, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }
-const btnOut: React.CSSProperties = { width: '100%', background: '#fff', color: '#1B4FCC', border: '2px solid #1B4FCC', borderRadius: 12, padding: '12px 0', fontSize: 15, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }
-const inp: React.CSSProperties = { width: '100%', border: '1px solid #d1d5db', borderRadius: 12, padding: '14px 16px', fontSize: 15, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }
 
 export default function Home() {
   const [pantalla, setPantalla] = useState('inicio')
-  const [authModal, setAuthModal] = useState<'login'|'registro'|null>(null)
   const [userEmail, setUserEmail] = useState<string|null>(null)
-  const [email, setEmail] = useState('')
-  const [pass, setPass] = useState('')
-  const [authErr, setAuthErr] = useState('')
-  const [authOk, setAuthOk] = useState('')
-  const [authLoad, setAuthLoad] = useState(false)
   const [chat, setChat] = useState<Msg[]>([])
   const [msg, setMsg] = useState('')
   const [loading, setLoading] = useState(false)
   const [ruta, setRuta] = useState<Ruta|null>(null)
+  const [authLoading, setAuthLoading] = useState(false)
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setUserEmail(data.session?.user?.email ?? null)
-    })
+    supabase.auth.getSession().then(({ data }) => setUserEmail(data.session?.user?.email ?? null))
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
       setUserEmail(session?.user?.email ?? null)
-      if (session) setAuthModal(null)
     })
     return () => subscription.unsubscribe()
   }, [])
 
-  async function login() {
-    setAuthLoad(true); setAuthErr(''); setAuthOk('')
-    const { error } = await supabase.auth.signInWithPassword({ email, password: pass })
-    if (error) setAuthErr('Email o contraseña incorrectos')
-    setAuthLoad(false)
+  async function loginGoogle() {
+    setAuthLoading(true)
+    await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: 'https://unidosporti.vercel.app' }
+    })
+    setAuthLoading(false)
   }
 
-  async function registro() {
-    setAuthLoad(true); setAuthErr(''); setAuthOk('')
-    const { error } = await supabase.auth.signUp({ email, password: pass })
-    if (error) setAuthErr('Error al registrarse. Intenta con otro email.')
-    else setAuthOk('Revisa tu email para confirmar tu cuenta ✅')
-    setAuthLoad(false)
-  }
-
-  async function logout() {
-    await supabase.auth.signOut()
-  }
+  async function logout() { await supabase.auth.signOut() }
 
   async function send() {
     if (!msg.trim() || loading) return
@@ -78,41 +60,6 @@ export default function Home() {
 
   const wrap: React.CSSProperties = { maxWidth: 480, margin: '0 auto', height: '100dvh', display: 'flex', flexDirection: 'column', background: '#f8f9ff' }
 
-  if (authModal) return (
-    <div style={wrap}>
-      <header style={{ background: '#fff', borderBottom: '1px solid #e5e7eb', padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <button onClick={() => { setAuthModal(null); setAuthErr(''); setAuthOk('') }} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: '#6b7280' }}>←</button>
-        <span style={{ fontWeight: 700, fontSize: 16 }}>{authModal === 'login' ? 'Iniciar sesión' : 'Crear cuenta'}</span>
-        <div style={{ width: 32 }} />
-      </header>
-      <div style={{ flex: 1, padding: 24, display: 'flex', flexDirection: 'column', gap: 16, overflowY: 'auto' }}>
-        <div style={{ textAlign: 'center', paddingBottom: 8 }}>
-          <div style={{ fontSize: 52 }}>{authModal === 'login' ? '👋' : '🎉'}</div>
-          <p style={{ fontWeight: 800, fontSize: 20, margin: '8px 0 4px', color: '#111' }}>{authModal === 'login' ? 'Bienvenido de nuevo' : 'Únete gratis'}</p>
-          <p style={{ fontSize: 13, color: '#6b7280', margin: 0 }}>{authModal === 'login' ? 'Accede a tu cuenta' : 'Guarda tu progreso y accede desde cualquier dispositivo'}</p>
-        </div>
-        {authErr && <div style={{ fontSize: 13, color: '#dc2626', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, padding: '12px 16px', textAlign: 'center' }}>{authErr}</div>}
-        {authOk && <div style={{ fontSize: 13, color: '#166534', background: '#dcfce7', border: '1px solid #bbf7d0', borderRadius: 10, padding: '12px 16px', textAlign: 'center' }}>{authOk}</div>}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <label style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>Email</label>
-          <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="tu@email.com" style={inp} />
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <label style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>Contraseña</label>
-          <input type="password" value={pass} onChange={e => setPass(e.target.value)} placeholder="Mínimo 6 caracteres" style={inp}
-            onKeyDown={e => e.key === 'Enter' && (authModal === 'login' ? login() : registro())} />
-        </div>
-        <button onClick={authModal === 'login' ? login : registro} disabled={authLoad} style={{ ...btn, opacity: authLoad ? 0.7 : 1 }}>
-          {authLoad ? 'Cargando...' : authModal === 'login' ? 'Entrar' : 'Crear cuenta gratis'}
-        </button>
-        <button onClick={() => { setAuthModal(authModal === 'login' ? 'registro' : 'login'); setAuthErr(''); setAuthOk('') }} style={btnOut}>
-          {authModal === 'login' ? '¿No tienes cuenta? Regístrate' : '¿Ya tienes cuenta? Inicia sesión'}
-        </button>
-        <p style={{ fontSize: 11, color: '#9ca3af', textAlign: 'center', margin: 0 }}>100% gratuito · Sin tarjeta de crédito</p>
-      </div>
-    </div>
-  )
-
   return (
     <div style={wrap}>
       <header style={{ background: '#fff', borderBottom: '1px solid #e5e7eb', padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
@@ -124,7 +71,7 @@ export default function Home() {
         </div>
         {userEmail
           ? <button onClick={logout} style={{ fontSize: 12, background: '#f3f4f6', border: 'none', borderRadius: 20, padding: '6px 12px', cursor: 'pointer', color: '#374151', fontFamily: 'inherit' }}>👤 Salir</button>
-          : <button onClick={() => setAuthModal('login')} style={{ fontSize: 12, background: '#1B4FCC', color: '#fff', border: 'none', borderRadius: 20, padding: '6px 14px', cursor: 'pointer', fontWeight: 600, fontFamily: 'inherit' }}>Entrar</button>
+          : <button onClick={loginGoogle} disabled={authLoading} style={{ fontSize: 12, background: '#1B4FCC', color: '#fff', border: 'none', borderRadius: 20, padding: '6px 14px', cursor: 'pointer', fontWeight: 600, fontFamily: 'inherit', opacity: authLoading ? 0.7 : 1 }}>Entrar</button>
         }
       </header>
 
@@ -164,7 +111,12 @@ export default function Home() {
                 <p style={{ fontSize: 12, color: '#6b7280', margin: 0 }}>Encuentra trabajo</p>
               </button>
             </div>
-            {!userEmail && <button onClick={() => setAuthModal('registro')} style={{ ...btn, background: '#111' }}>🚀 Crear cuenta gratis</button>}
+            {!userEmail && (
+              <button onClick={loginGoogle} disabled={authLoading} style={{ ...btn, background: '#111', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, opacity: authLoading ? 0.7 : 1 }}>
+                <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20H24v8h11.3C33.6 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3 0 5.7 1.1 7.8 2.9l5.7-5.7C34.1 6.5 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20c11 0 20-9 20-20 0-1.3-.1-2.7-.4-4z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.5 15.8 18.9 13 24 13c3 0 5.7 1.1 7.8 2.9l5.7-5.7C34.1 6.5 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.3 35.3 26.8 36 24 36c-5.2 0-9.5-3.3-11.2-7.9l-6.5 5C9.5 39.5 16.3 44 24 44z"/><path fill="#1976D2" d="M43.6 20H24v8h11.3c-.9 2.5-2.6 4.6-4.9 6l6.2 5.2C40.3 35.7 44 30.3 44 24c0-1.3-.1-2.7-.4-4z"/></svg>
+                {authLoading ? 'Cargando...' : 'Continuar con Google'}
+              </button>
+            )}
           </div>
         )}
 
@@ -176,7 +128,7 @@ export default function Home() {
                 <p style={{ fontWeight: 700, fontSize: 16, color: '#111', margin: '0 0 4px' }}>Asistente Legal IA</p>
                 <p style={{ fontSize: 13, color: '#6b7280', margin: '0 0 16px' }}>Pregúntame sobre trámites y derechos</p>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {['¿Qué es el arraigo social?', '¿Cómo consigo un precontrato?', '¿Puedo trabajar sin papeles?'].map(q => (
+                  {['¿Qué es el arraigo social?','¿Cómo consigo un precontrato?','¿Puedo trabajar sin papeles?'].map(q => (
                     <button key={q} onClick={() => setMsg(q)} style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 12, padding: '10px 14px', textAlign: 'left', fontSize: 13, color: '#1d4ed8', cursor: 'pointer', fontFamily: 'inherit' }}>{q}</button>
                   ))}
                 </div>
