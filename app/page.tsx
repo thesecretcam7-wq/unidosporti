@@ -20,7 +20,7 @@ const btn: React.CSSProperties = { width: '100%', background: '#1B4FCC', color: 
 
 function GoogleIcon() {
   return (
-    <svg width="20" height="20" viewBox="0 0 48 48">
+    <svg width="22" height="22" viewBox="0 0 48 48">
       <path fill="#FFC107" d="M43.6 20H24v8h11.3C33.6 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3 0 5.7 1.1 7.8 2.9l5.7-5.7C34.1 6.5 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20c11 0 20-9 20-20 0-1.3-.1-2.7-.4-4z"/>
       <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.5 15.8 18.9 13 24 13c3 0 5.7 1.1 7.8 2.9l5.7-5.7C34.1 6.5 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/>
       <path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.3 35.3 26.8 36 24 36c-5.2 0-9.5-3.3-11.2-7.9l-6.5 5C9.5 39.5 16.3 44 24 44z"/>
@@ -76,82 +76,92 @@ export default function Home() {
 
   const wrap: React.CSSProperties = { maxWidth: 480, margin: '0 auto', height: '100dvh', display: 'flex', flexDirection: 'column', background: '#f8f9ff' }
 
-  // Pantalla de carga
   if (sessionLoading) {
     return (
       <div style={{ ...wrap, alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ width: 48, height: 48, background: '#1B4FCC', borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
-          <span style={{ color: '#fff', fontWeight: 800, fontSize: 22 }}>U</span>
+        <div style={{ width: 56, height: 56, background: '#1B4FCC', borderRadius: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+          <span style={{ color: '#fff', fontWeight: 800, fontSize: 24 }}>U</span>
         </div>
-        <p style={{ color: '#6b7280', fontSize: 14 }}>Cargando...</p>
+        <p style={{ color: '#9ca3af', fontSize: 14 }}>Cargando...</p>
       </div>
     )
   }
 
-  // Pantalla de login si no hay sesión
   if (!userEmail) {
     return (
-      <div style={{ ...wrap, alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-        <div style={{ width: '100%', maxWidth: 380, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 24 }}>
-          {/* Logo */}
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
-            <div style={{ width: 72, height: 72, background: '#1B4FCC', borderRadius: 20, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <span style={{ color: '#fff', fontWeight: 800, fontSize: 32 }}>U</span>
-            </div>
-            <h1 style={{ fontSize: 28, fontWeight: 800, color: '#111', margin: 0 }}>UnidosPorTi</h1>
-            <p style={{ fontSize: 14, color: '#6b7280', margin: 0, textAlign: 'center' }}>Tu guía gratuita para regularizarte en España</p>
+      <div style={{ ...wrap, overflowY: 'auto', background: '#f0f4ff' }}>
+        {/* Hero */}
+        <div style={{ background: 'linear-gradient(160deg, #1B4FCC 0%, #1e3a8a 100%)', padding: '44px 24px 32px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, textAlign: 'center' }}>
+          <div style={{ width: 64, height: 64, background: 'rgba(255,255,255,0.15)', borderRadius: 18, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <span style={{ color: '#fff', fontWeight: 900, fontSize: 28 }}>U</span>
           </div>
+          <div>
+            <h1 style={{ fontSize: 32, fontWeight: 900, color: '#fff', margin: '0 0 8px', letterSpacing: -1 }}>UnidosPorTi</h1>
+            <p style={{ fontSize: 17, color: 'rgba(255,255,255,0.95)', margin: '0 0 8px', fontWeight: 700 }}>
+              Tu guía para vivir mejor en España 🇪🇸
+            </p>
+            <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.75)', margin: 0, lineHeight: 1.6, maxWidth: 300 }}>
+              No importa si llevas un mes o tres años — estamos aquí para ayudarte con todo lo que nadie te explica
+            </p>
+          </div>
+        </div>
 
-          {/* Features */}
-          <div style={{ width: '100%', background: '#fff', borderRadius: 20, padding: 20, display: 'flex', flexDirection: 'column', gap: 14, border: '1px solid #e5e7eb' }}>
-            {[
-              { icon: '📋', text: 'Guía paso a paso para arraigo social, laboral y familiar' },
-              { icon: '🤖', text: 'Chat IA para resolver tus dudas legales' },
-              { icon: '💼', text: 'Ofertas de empleo para migrantes' },
-            ].map(({ icon, text }) => (
-              <div key={text} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <span style={{ fontSize: 22, flexShrink: 0 }}>{icon}</span>
-                <span style={{ fontSize: 13, color: '#374151' }}>{text}</span>
+        <div style={{ padding: '20px 18px 32px', display: 'flex', flexDirection: 'column', gap: 11 }}>
+
+          {/* Cards */}
+          {[
+            { icon: '📄', title: 'Regulariza tu situación', desc: 'Arraigo social, laboral y familiar — paso a paso, sin jerga legal', color: '#eff6ff', border: '#bfdbfe' },
+            { icon: '💼', title: 'Encuentra trabajo', desc: 'Empresas reales que contratan migrantes y firman precontratos', color: '#f0fdf4', border: '#bbf7d0' },
+            { icon: '🏠', title: 'Busca vivienda', desc: 'Pisos, habitaciones y recursos para recién llegados', color: '#fefce8', border: '#fde68a' },
+            { icon: '🤖', title: 'Asistente IA 24/7', desc: 'Resuelve tus dudas legales, laborales y de vivienda al instante', color: '#fdf4ff', border: '#e9d5ff' },
+            { icon: '🧭', title: 'Guía de vida completa', desc: 'Nómina, sanidad, banco, escuela — todo lo que necesitas saber', color: '#fff7ed', border: '#fed7aa' },
+          ].map(({ icon, title, desc, color, border }) => (
+            <div key={title} style={{ background: color, border: `1px solid ${border}`, borderRadius: 16, padding: '13px 15px', display: 'flex', gap: 13, alignItems: 'flex-start' }}>
+              <span style={{ fontSize: 24, flexShrink: 0, marginTop: 1 }}>{icon}</span>
+              <div>
+                <p style={{ fontWeight: 700, fontSize: 14, color: '#111', margin: '0 0 2px' }}>{title}</p>
+                <p style={{ fontSize: 12, color: '#6b7280', margin: 0, lineHeight: 1.5 }}>{desc}</p>
+              </div>
+            </div>
+          ))}
+
+          {/* Stats */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginTop: 2 }}>
+            {[{ n: '100%', label: 'Gratis' }, { n: '24/7', label: 'Disponible' }, { n: '0 €', label: 'Sin coste' }].map(({ n, label }) => (
+              <div key={label} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 14, padding: '12px 6px', textAlign: 'center' }}>
+                <p style={{ fontSize: 18, fontWeight: 900, color: '#1B4FCC', margin: '0 0 2px' }}>{n}</p>
+                <p style={{ fontSize: 11, color: '#6b7280', margin: 0 }}>{label}</p>
               </div>
             ))}
           </div>
 
-          {/* Botón Google */}
+          {/* CTA */}
           <button
             onClick={loginGoogle}
             disabled={authLoading}
             style={{
-              width: '100%',
-              background: '#fff',
-              color: '#111',
-              border: '2px solid #e5e7eb',
-              borderRadius: 14,
-              padding: '14px 0',
-              fontSize: 16,
-              fontWeight: 700,
-              cursor: authLoading ? 'wait' : 'pointer',
-              fontFamily: 'inherit',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 10,
+              width: '100%', marginTop: 6,
+              background: '#fff', color: '#111',
+              border: '2px solid #e5e7eb', borderRadius: 16,
+              padding: '16px 0', fontSize: 16, fontWeight: 700,
+              cursor: authLoading ? 'wait' : 'pointer', fontFamily: 'inherit',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12,
               opacity: authLoading ? 0.7 : 1,
-              boxShadow: '0 2px 8px rgba(0,0,0,0.08)'
+              boxShadow: '0 4px 20px rgba(27,79,204,0.15)'
             }}
           >
             <GoogleIcon />
-            {authLoading ? 'Redirigiendo...' : 'Continuar con Google'}
+            {authLoading ? 'Redirigiendo...' : 'Empezar gratis con Google'}
           </button>
 
-          <p style={{ fontSize: 11, color: '#9ca3af', textAlign: 'center', margin: 0 }}>
-            Gratis · Sin publicidad · Tus datos protegidos
+          <p style={{ fontSize: 11, color: '#9ca3af', textAlign: 'center', margin: '2px 0 0' }}>
+            Sin tarjeta · Sin publicidad · Tus datos protegidos
           </p>
         </div>
       </div>
     )
   }
 
-  // App principal (solo si hay sesión)
   return (
     <div style={wrap}>
       <header style={{ background: '#fff', borderBottom: '1px solid #e5e7eb', padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
@@ -174,7 +184,7 @@ export default function Home() {
             <div style={{ background: 'linear-gradient(135deg, #1B4FCC, #2563eb)', borderRadius: 20, padding: 24, color: '#fff' }}>
               <p style={{ fontSize: 13, opacity: 0.8, margin: 0 }}>Bienvenido a</p>
               <h1 style={{ fontSize: 26, fontWeight: 800, margin: '4px 0' }}>UnidosPorTi</h1>
-              <p style={{ fontSize: 13, opacity: 0.9, margin: 0 }}>Tu guía gratuita para regularizarte en España</p>
+              <p style={{ fontSize: 13, opacity: 0.9, margin: 0 }}>Tu guía para vivir mejor en España</p>
             </div>
             <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 16, padding: 16 }}>
               <p style={{ fontSize: 13, fontWeight: 700, color: '#92400e', margin: '0 0 12px' }}>⚠️ ¿Cuál es tu situación?</p>
@@ -286,4 +296,4 @@ export default function Home() {
       </nav>
     </div>
   )
-                                        }
+}
