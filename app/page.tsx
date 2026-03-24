@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@supabase/supabase-js'
 
-const supabase = createClient(
+const supabase = createClient(h
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 )
@@ -656,10 +656,9 @@ export default function Home() {
               </div>
             </div>
             <div style={{ flex:1, overflowY:'auto', padding:'12px 14px', display:'flex', flexDirection:'column', gap:12 }}>
-              <p style={{ fontSize:12, color:'#6b7280', margin:0 }}>{viviendasFiltradas.length} opciones encontradas</p>
-              {viviendasFiltradas.length === 0 && <div style={{ textAlign:'center', padding:'40px 20px' }}><p style={{ fontSize:32 }}>🔍</p><p style={{ color:'#6b7280', fontSize:14 }}>No hay viviendas con esos filtros</p></div>}
+boxShadow:'0 1px 4px rgba(0,0,0,0.06)'              {viviendasFiltradas.length === 0 && <div style={{ textAlign:'center', padding:'40px 20px' }}><p style={{ fontSize:32 }}>🔍</p><p style={{ color:'#6b7280', fontSize:14 }}>No hay viviendas con esos filtros</p></div>}
               {viviendasFiltradas.map(v => (
-                <div key={v.id} style={{ background:'#fff', border:'1px solid #e5e7eb', borderRadius:18, overflow:'hidden', boxShadow:'0 1px 4px rgba(0,0,0,0.06)' }}>
+ boxShadow:'0 1px 4px rgba(0,0,0,0.06)'               <div key={v.id} style={{ background:'#fff', border:'1px solid #e5e7eb', borderRadius:18, boxShadow:'0 1px 4px rgba(0,0,0,0.06)' }}>
                   <div style={{ background:'linear-gradient(135deg,#fef3c7,#fde68a)', padding:'16px', display:'flex', alignItems:'center', gap:12 }}>
                     <span style={{ fontSize:36 }}>{v.img}</span>
                     <div>
