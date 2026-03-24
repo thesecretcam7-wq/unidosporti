@@ -18,9 +18,21 @@ const RUTAS = {
 
 const btn: React.CSSProperties = { width: '100%', background: '#1B4FCC', color: '#fff', border: 'none', borderRadius: 12, padding: '14px 0', fontSize: 15, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }
 
+function GoogleIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 48 48">
+      <path fill="#FFC107" d="M43.6 20H24v8h11.3C33.6 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3 0 5.7 1.1 7.8 2.9l5.7-5.7C34.1 6.5 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20c11 0 20-9 20-20 0-1.3-.1-2.7-.4-4z"/>
+      <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.5 15.8 18.9 13 24 13c3 0 5.7 1.1 7.8 2.9l5.7-5.7C34.1 6.5 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/>
+      <path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.3 35.3 26.8 36 24 36c-5.2 0-9.5-3.3-11.2-7.9l-6.5 5C9.5 39.5 16.3 44 24 44z"/>
+      <path fill="#1976D2" d="M43.6 20H24v8h11.3c-.9 2.5-2.6 4.6-4.9 6l6.2 5.2C40.3 35.7 44 30.3 44 24c0-1.3-.1-2.7-.4-4z"/>
+    </svg>
+  )
+}
+
 export default function Home() {
   const [pantalla, setPantalla] = useState('inicio')
   const [userEmail, setUserEmail] = useState<string|null>(null)
+  const [sessionLoading, setSessionLoading] = useState(true)
   const [chat, setChat] = useState<Msg[]>([])
   const [msg, setMsg] = useState('')
   const [loading, setLoading] = useState(false)
@@ -28,9 +40,13 @@ export default function Home() {
   const [authLoading, setAuthLoading] = useState(false)
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => setUserEmail(data.session?.user?.email ?? null))
+    supabase.auth.getSession().then(({ data }) => {
+      setUserEmail(data.session?.user?.email ?? null)
+      setSessionLoading(false)
+    })
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
       setUserEmail(session?.user?.email ?? null)
+      setSessionLoading(false)
     })
     return () => subscription.unsubscribe()
   }, [])
@@ -60,6 +76,82 @@ export default function Home() {
 
   const wrap: React.CSSProperties = { maxWidth: 480, margin: '0 auto', height: '100dvh', display: 'flex', flexDirection: 'column', background: '#f8f9ff' }
 
+  // Pantalla de carga
+  if (sessionLoading) {
+    return (
+      <div style={{ ...wrap, alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ width: 48, height: 48, background: '#1B4FCC', borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+          <span style={{ color: '#fff', fontWeight: 800, fontSize: 22 }}>U</span>
+        </div>
+        <p style={{ color: '#6b7280', fontSize: 14 }}>Cargando...</p>
+      </div>
+    )
+  }
+
+  // Pantalla de login si no hay sesión
+  if (!userEmail) {
+    return (
+      <div style={{ ...wrap, alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+        <div style={{ width: '100%', maxWidth: 380, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 24 }}>
+          {/* Logo */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+            <div style={{ width: 72, height: 72, background: '#1B4FCC', borderRadius: 20, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <span style={{ color: '#fff', fontWeight: 800, fontSize: 32 }}>U</span>
+            </div>
+            <h1 style={{ fontSize: 28, fontWeight: 800, color: '#111', margin: 0 }}>UnidosPorTi</h1>
+            <p style={{ fontSize: 14, color: '#6b7280', margin: 0, textAlign: 'center' }}>Tu guía gratuita para regularizarte en España</p>
+          </div>
+
+          {/* Features */}
+          <div style={{ width: '100%', background: '#fff', borderRadius: 20, padding: 20, display: 'flex', flexDirection: 'column', gap: 14, border: '1px solid #e5e7eb' }}>
+            {[
+              { icon: '📋', text: 'Guía paso a paso para arraigo social, laboral y familiar' },
+              { icon: '🤖', text: 'Chat IA para resolver tus dudas legales' },
+              { icon: '💼', text: 'Ofertas de empleo para migrantes' },
+            ].map(({ icon, text }) => (
+              <div key={text} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <span style={{ fontSize: 22, flexShrink: 0 }}>{icon}</span>
+                <span style={{ fontSize: 13, color: '#374151' }}>{text}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Botón Google */}
+          <button
+            onClick={loginGoogle}
+            disabled={authLoading}
+            style={{
+              width: '100%',
+              background: '#fff',
+              color: '#111',
+              border: '2px solid #e5e7eb',
+              borderRadius: 14,
+              padding: '14px 0',
+              fontSize: 16,
+              fontWeight: 700,
+              cursor: authLoading ? 'wait' : 'pointer',
+              fontFamily: 'inherit',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 10,
+              opacity: authLoading ? 0.7 : 1,
+              boxShadow: '0 2px 8px rgba(0,0,0,0.08)'
+            }}
+          >
+            <GoogleIcon />
+            {authLoading ? 'Redirigiendo...' : 'Continuar con Google'}
+          </button>
+
+          <p style={{ fontSize: 11, color: '#9ca3af', textAlign: 'center', margin: 0 }}>
+            Gratis · Sin publicidad · Tus datos protegidos
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  // App principal (solo si hay sesión)
   return (
     <div style={wrap}>
       <header style={{ background: '#fff', borderBottom: '1px solid #e5e7eb', padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
@@ -69,19 +161,16 @@ export default function Home() {
           </div>
           <span style={{ fontWeight: 700, color: '#111', fontSize: 16 }}>UnidosPorTi</span>
         </div>
-        {userEmail
-          ? <button onClick={logout} style={{ fontSize: 12, background: '#f3f4f6', border: 'none', borderRadius: 20, padding: '6px 12px', cursor: 'pointer', color: '#374151', fontFamily: 'inherit' }}>👤 Salir</button>
-          : <button onClick={loginGoogle} disabled={authLoading} style={{ fontSize: 12, background: '#1B4FCC', color: '#fff', border: 'none', borderRadius: 20, padding: '6px 14px', cursor: 'pointer', fontWeight: 600, fontFamily: 'inherit', opacity: authLoading ? 0.7 : 1 }}>Entrar</button>
-        }
+        <button onClick={logout} style={{ fontSize: 12, background: '#f3f4f6', border: 'none', borderRadius: 20, padding: '6px 12px', cursor: 'pointer', color: '#374151', fontFamily: 'inherit' }}>👤 Salir</button>
       </header>
 
       <div style={{ flex: 1, overflowY: 'auto', paddingBottom: 72 }}>
         {pantalla === 'inicio' && (
           <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {userEmail && <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 14, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 14, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
               <span style={{ fontSize: 22 }}>👤</span>
               <div><p style={{ fontSize: 13, fontWeight: 700, color: '#166534', margin: 0 }}>Sesión activa</p><p style={{ fontSize: 12, color: '#4b5563', margin: 0 }}>{userEmail}</p></div>
-            </div>}
+            </div>
             <div style={{ background: 'linear-gradient(135deg, #1B4FCC, #2563eb)', borderRadius: 20, padding: 24, color: '#fff' }}>
               <p style={{ fontSize: 13, opacity: 0.8, margin: 0 }}>Bienvenido a</p>
               <h1 style={{ fontSize: 26, fontWeight: 800, margin: '4px 0' }}>UnidosPorTi</h1>
@@ -91,8 +180,7 @@ export default function Home() {
               <p style={{ fontSize: 13, fontWeight: 700, color: '#92400e', margin: '0 0 12px' }}>⚠️ ¿Cuál es tu situación?</p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {(Object.keys(RUTAS) as Ruta[]).map(key => (
-                  <button key={key} onClick={() => { setRuta(key); setPantalla('tramites') }}
-                    style={{ background: '#fff', border: '1px solid #fde68a', borderRadius: 12, padding: '12px 16px', textAlign: 'left', cursor: 'pointer', fontSize: 14, fontFamily: 'inherit' }}>
+                  <button key={key} onClick={() => { setRuta(key); setPantalla('tramites') }} style={{ background: '#fff', border: '1px solid #fde68a', borderRadius: 12, padding: '12px 16px', textAlign: 'left', cursor: 'pointer', fontSize: 14, fontFamily: 'inherit' }}>
                     <span style={{ fontWeight: 600, color: '#111' }}>{RUTAS[key].nombre}</span>
                     <span style={{ color: '#6b7280', marginLeft: 8 }}>· {RUTAS[key].tiempo}</span>
                   </button>
@@ -111,12 +199,6 @@ export default function Home() {
                 <p style={{ fontSize: 12, color: '#6b7280', margin: 0 }}>Encuentra trabajo</p>
               </button>
             </div>
-            {!userEmail && (
-              <button onClick={loginGoogle} disabled={authLoading} style={{ ...btn, background: '#111', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, opacity: authLoading ? 0.7 : 1 }}>
-                <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20H24v8h11.3C33.6 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3 0 5.7 1.1 7.8 2.9l5.7-5.7C34.1 6.5 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20c11 0 20-9 20-20 0-1.3-.1-2.7-.4-4z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.5 15.8 18.9 13 24 13c3 0 5.7 1.1 7.8 2.9l5.7-5.7C34.1 6.5 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.3 35.3 26.8 36 24 36c-5.2 0-9.5-3.3-11.2-7.9l-6.5 5C9.5 39.5 16.3 44 24 44z"/><path fill="#1976D2" d="M43.6 20H24v8h11.3c-.9 2.5-2.6 4.6-4.9 6l6.2 5.2C40.3 35.7 44 30.3 44 24c0-1.3-.1-2.7-.4-4z"/></svg>
-                {authLoading ? 'Cargando...' : 'Continuar con Google'}
-              </button>
-            )}
           </div>
         )}
 
@@ -142,8 +224,7 @@ export default function Home() {
             </div>
             <div style={{ padding: '12px 16px', background: '#fff', borderTop: '1px solid #e5e7eb' }}>
               <div style={{ display: 'flex', gap: 8 }}>
-                <input value={msg} onChange={e => setMsg(e.target.value)} onKeyDown={e => e.key === 'Enter' && send()} placeholder="Escribe tu pregunta..."
-                  style={{ flex: 1, border: '1px solid #d1d5db', borderRadius: 24, padding: '10px 16px', fontSize: 14, outline: 'none', fontFamily: 'inherit' }} />
+                <input value={msg} onChange={e => setMsg(e.target.value)} onKeyDown={e => e.key === 'Enter' && send()} placeholder="Escribe tu pregunta..." style={{ flex: 1, border: '1px solid #d1d5db', borderRadius: 24, padding: '10px 16px', fontSize: 14, outline: 'none', fontFamily: 'inherit' }} />
                 <button onClick={send} disabled={loading} style={{ width: 44, height: 44, background: '#1B4FCC', border: 'none', borderRadius: '50%', color: '#fff', fontSize: 18, cursor: 'pointer', flexShrink: 0, opacity: loading ? 0.5 : 1 }}>➤</button>
               </div>
             </div>
@@ -154,7 +235,7 @@ export default function Home() {
           <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
             <h2 style={{ fontSize: 20, fontWeight: 800, margin: 0, color: '#111' }}>💼 Ofertas de Empleo</h2>
             <p style={{ fontSize: 13, color: '#1d4ed8', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 12, padding: 12, margin: 0 }}>✅ Empresas que aceptan migrantes y firman precontratos</p>
-            {[{ empresa: 'Fincas Martínez', sector: '🌱 Agricultura', ciudad: 'Murcia', salario: '1.200€/mes' }, { empresa: 'Construcciones Levante', sector: '🔨 Construcción', ciudad: 'Murcia', salario: '1.400€/mes' }, { empresa: 'Hostal Los Pinos', sector: '🏨 Hostelería', ciudad: 'Cartagena', salario: '1.100€/mes' }].map((o, i) => (
+            {[{ empresa: 'Fincas Martínez', sector: '🌱 Agricultura', ciudad: 'Murcia', salario: '1.200€/mes' },{ empresa: 'Construcciones Levante', sector: '🔨 Construcción', ciudad: 'Murcia', salario: '1.400€/mes' },{ empresa: 'Hostal Los Pinos', sector: '🏨 Hostelería', ciudad: 'Cartagena', salario: '1.100€/mes' }].map((o, i) => (
               <div key={i} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 16, padding: 16 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
                   <div><p style={{ fontWeight: 700, fontSize: 15, margin: '0 0 2px', color: '#111' }}>{o.empresa}</p><p style={{ fontSize: 13, color: '#6b7280', margin: 0 }}>{o.sector} · {o.ciudad}</p></div>
@@ -196,7 +277,7 @@ export default function Home() {
       </div>
 
       <nav style={{ position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 480, background: '#fff', borderTop: '1px solid #e5e7eb', display: 'flex', zIndex: 100 }}>
-        {[{ id: 'inicio', icon: '🏠', label: 'Inicio' }, { id: 'chat', icon: '💬', label: 'Chat IA' }, { id: 'empleo', icon: '💼', label: 'Empleo' }, { id: 'tramites', icon: '📋', label: 'Trámites' }].map(({ id, icon, label }) => (
+        {[{ id: 'inicio', icon: '🏠', label: 'Inicio' },{ id: 'chat', icon: '💬', label: 'Chat IA' },{ id: 'empleo', icon: '💼', label: 'Empleo' },{ id: 'tramites', icon: '📋', label: 'Trámites' }].map(({ id, icon, label }) => (
           <button key={id} onClick={() => setPantalla(id)} style={{ flex: 1, padding: '10px 0 8px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, background: 'none', border: 'none', cursor: 'pointer', borderTop: pantalla === id ? '2px solid #1B4FCC' : '2px solid transparent', fontFamily: 'inherit' }}>
             <span style={{ fontSize: 22 }}>{icon}</span>
             <span style={{ fontSize: 10, fontWeight: 600, color: pantalla === id ? '#1B4FCC' : '#9ca3af' }}>{label}</span>
@@ -205,4 +286,4 @@ export default function Home() {
       </nav>
     </div>
   )
-}
+                                        }
