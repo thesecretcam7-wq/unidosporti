@@ -4,7 +4,8 @@ import { createClient } from '@supabase/supabase-js'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+  { auth: { persistSession: true, detectSessionInUrl: true, autoRefreshToken: true } }
 )
 
 type Pantalla = 'inicio' | 'empleo' | 'vivienda' | 'chat' | 'tramites' | 'perfil' | 'calculadora' | 'contrato' | 'nomina' | 'notificaciones' | 'admin' | 'publicar-empleo' | 'publicar-vivienda' | 'mis-publicaciones' | 'comunidad'
@@ -272,16 +273,18 @@ export default function Home() {
   }
 
   useEffect(() => {
+    if (pantalla !== 'comunidad') return
+    let channel: ReturnType<typeof supabase.channel> | null = null
     supabase.from('chat_comunidad').select('*').order('created_at', { ascending:true }).limit(80).then(({ data }) => {
       setComunidadMsgs(data ?? [])
       setTimeout(() => comunidadBottomRef.current?.scrollIntoView({ behavior:'smooth' }), 100)
     })
-    const channel = supabase.channel('chat_comunidad_rt').on('postgres_changes' as any, { event:'INSERT', schema:'public', table:'chat_comunidad' }, (payload: any) => {
+    channel = supabase.channel('chat_comunidad_rt').on('postgres_changes' as any, { event:'INSERT', schema:'public', table:'chat_comunidad' }, (payload: any) => {
       setComunidadMsgs(prev => [...prev, payload.new as ChatMsg])
       setTimeout(() => comunidadBottomRef.current?.scrollIntoView({ behavior:'smooth' }), 50)
     }).subscribe()
-    return () => { supabase.removeChannel(channel) }
-  }, [])
+    return () => { if (channel) supabase.removeChannel(channel) }
+  }, [pantalla])
 
   async function sendComunidad() {
     if (!comunidadMsg.trim() || comunidadSending || !userId || !userEmail) return
