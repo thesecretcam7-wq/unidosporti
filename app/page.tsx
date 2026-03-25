@@ -8,7 +8,7 @@ const supabase = createClient(
   { auth: { persistSession: true, detectSessionInUrl: true, autoRefreshToken: true } }
 )
 
-type Pantalla = 'inicio' | 'empleo' | 'vivienda' | 'chat' | 'tramites' | 'perfil' | 'calculadora' | 'contrato' | 'nomina' | 'notificaciones' | 'admin' | 'publicar-empleo' | 'publicar-vivienda' | 'mis-publicaciones' | 'comunidad'
+type Pantalla = 'inicio' | 'empleo' | 'vivienda' | 'chat' | 'tramites' | 'perfil' | 'calculadora' | 'contrato' | 'nomina' | 'notificaciones' | 'admin' | 'publicar-empleo' | 'publicar-vivienda' | 'mis-publicaciones' | 'comunidad' | 'mensajes' | 'conversacion'
 type Ruta = 'arraigo_social' | 'arraigo_laboral' | 'arraigo_familiar'
 type Msg = { role: string; content: string }
 
@@ -65,6 +65,8 @@ const SITUACIONES = ['Sin documentación','NIE en trámite','Arraigo en proceso'
 const ADMIN_EMAIL = 'thesecretcam7@gmail.com'
 
 type ChatMsg = { id:string; user_id:string; user_email:string; nombre:string|null; mensaje:string; created_at:string }
+type MensajePrivado = { id:string; from_user_id:string; from_nombre:string|null; from_email:string; to_user_id:string; to_nombre:string|null; to_email:string; mensaje:string; leido:boolean; created_at:string }
+type ConvInfo = { user_id:string; nombre:string; email:string; ultimo_mensaje:string; ultimo_tiempo:string; no_leidos:number }
 type DbEmpleo = { id:string; user_id:string; user_email:string; empresa:string; sector:string; ciudad:string; salario:string; jornada:string; arraigo:boolean; precontrato:boolean; nie:boolean; desc:string; contacto_tipo:string; contacto_whatsapp?:string; contacto_email?:string; status:string }
 type DbVivienda = { id:string; user_id:string; user_email:string; tipo:string; titulo:string; ciudad:string; barrio:string; precio:number; fianza:number; sin_nomina:boolean; extranjeros:boolean; m2?:number; desc:string; contacto_tipo:string; contacto_whatsapp?:string; contacto_email?:string; status:string }
 type FormEmpleo = { empresa:string; sector:string; ciudad:string; salario:string; jornada:string; arraigo:boolean; precontrato:boolean; nie:boolean; desc:string; contacto_tipo:string; contacto_whatsapp:string; contacto_email:string }
@@ -148,6 +150,13 @@ export default function Home() {
   const [comunidadMsg, setComunidadMsg] = useState('')
   const [comunidadSending, setComunidadSending] = useState(false)
   const comunidadBottomRef = useRef<HTMLDivElement>(null)
+  const [mensajesNoLeidos, setMensajesNoLeidos] = useState(0)
+  const [conversaciones, setConversaciones] = useState<ConvInfo[]>([])
+  const [convActiva, setConvActiva] = useState<{user_id:string; nombre:string; email:string}|null>(null)
+  const [convMensajes, setConvMensajes] = useState<MensajePrivado[]>([])
+  const [convMsg, setConvMsg] = useState('')
+  const [convSending, setConvSending] = useState(false)
+  const convBottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data }) => {
@@ -157,6 +166,7 @@ export default function Home() {
         setUserId(data.session.user.id)
         await loadProfile(data.session.user.id)
         await fetchDbListings(data.session.user.id)
+        fetchMensajesNoLeidos(data.session.user.id)
       } else setSessionLoading(false)
     })
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_e, session) => {
@@ -165,6 +175,7 @@ export default function Home() {
         setUserId(session.user.id)
         await loadProfile(session.user.id)
         await fetchDbListings(session.user.id)
+        fetchMensajesNoLeidos(session.user.id)
       } else {
         setUserId(null)
         setSessionLoading(false)
@@ -294,6 +305,61 @@ export default function Home() {
     await supabase.from('chat_comunidad').insert({ user_id:userId, user_email:userEmail, nombre:editNombre||null, mensaje:texto })
     setComunidadSending(false)
   }
+
+  async function fetchMensajesNoLeidos(uid: string) {
+    const { count } = await supabase.from('mensajes_privados').select('*', { count:'exact', head:true }).eq('to_user_id', uid).eq('leido', false)
+    setMensajesNoLeidos(count ?? 0)
+  }
+
+  async function fetchConversaciones(uid: string) {
+    const { data } = await supabase.from('mensajes_privados').select('*').or(`from_user_id.eq.${uid},to_user_id.eq.${uid}`).order('created_at', { ascending:false })
+    if (!data) return
+    const map = new Map<string, ConvInfo>()
+    data.forEach(m => {
+      const otherId = m.from_user_id === uid ? m.to_user_id : m.from_user_id
+      const otherNombre = m.from_user_id === uid ? (m.to_nombre || m.to_email.split('@')[0]) : (m.from_nombre || m.from_email.split('@')[0])
+      const otherEmail = m.from_user_id === uid ? m.to_email : m.from_email
+      if (!map.has(otherId)) {
+        map.set(otherId, { user_id:otherId, nombre:otherNombre, email:otherEmail, ultimo_mensaje:m.mensaje, ultimo_tiempo:m.created_at, no_leidos:(!m.leido && m.to_user_id===uid) ? 1 : 0 })
+      } else {
+        const c = map.get(otherId)!
+        if (!m.leido && m.to_user_id===uid) c.no_leidos++
+      }
+    })
+    setConversaciones(Array.from(map.values()))
+  }
+
+  async function fetchConversacion(uid: string, otherId: string) {
+    const { data } = await supabase.from('mensajes_privados').select('*')
+      .or(`and(from_user_id.eq.${uid},to_user_id.eq.${otherId}),and(from_user_id.eq.${otherId},to_user_id.eq.${uid})`)
+      .order('created_at', { ascending:true })
+    setConvMensajes(data ?? [])
+    await supabase.from('mensajes_privados').update({ leido:true }).eq('to_user_id', uid).eq('from_user_id', otherId).eq('leido', false)
+    fetchMensajesNoLeidos(uid)
+    setTimeout(() => convBottomRef.current?.scrollIntoView({ behavior:'smooth' }), 100)
+  }
+
+  async function sendMensajePrivado() {
+    if (!convMsg.trim() || convSending || !userId || !userEmail || !convActiva) return
+    setConvSending(true)
+    const texto = convMsg.trim()
+    setConvMsg('')
+    await supabase.from('mensajes_privados').insert({ from_user_id:userId, from_nombre:editNombre||null, from_email:userEmail, to_user_id:convActiva.user_id, to_nombre:convActiva.nombre, to_email:convActiva.email, mensaje:texto, leido:false })
+    await fetchConversacion(userId, convActiva.user_id)
+    setConvSending(false)
+  }
+
+  function abrirConversacion(otro: {user_id:string; nombre:string; email:string}) {
+    setConvActiva(otro)
+    setPantalla('conversacion')
+    if (userId) fetchConversacion(userId, otro.user_id)
+  }
+
+  useEffect(() => {
+    if (!userId) return
+    if (pantalla === 'mensajes') fetchConversaciones(userId)
+    if (pantalla === 'conversacion' && convActiva) fetchConversacion(userId, convActiva.user_id)
+  }, [pantalla])
 
   async function loadProfile(userId: string) {
     try {
@@ -450,6 +516,10 @@ export default function Home() {
           <img src="/logo.png" alt="UnidosPorTi" style={{ width:56, height:56, objectFit:'contain' }} />
         </div>
         <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+          <button onClick={() => setPantalla('mensajes')} style={{ background:'none', border:'none', cursor:'pointer', position:'relative' as const, padding:4 }}>
+            <span style={{ fontSize:20 }}>✉️</span>
+            {mensajesNoLeidos > 0 && <span style={{ position:'absolute' as const, top:0, right:0, background:'#7c3aed', color:'#fff', borderRadius:'50%', width:16, height:16, fontSize:10, display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700 }}>{mensajesNoLeidos}</span>}
+          </button>
           <button onClick={() => setPantalla('notificaciones')} style={{ background:'none', border:'none', cursor:'pointer', position:'relative' as const, padding:4 }}>
             <span style={{ fontSize:20 }}>🔔</span>
             {notifCount > 0 && <span style={{ position:'absolute' as const, top:0, right:0, background:'#ef4444', color:'#fff', borderRadius:'50%', width:16, height:16, fontSize:10, display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700 }}>{notifCount}</span>}
@@ -1272,7 +1342,12 @@ export default function Home() {
                       </div>
                     )}
                     <div style={{ maxWidth:'72%' }}>
-                      {!esMio && !mismoAnterior && <p style={{ fontSize:11, fontWeight:700, color:'#6d28d9', margin:'0 0 3px 4px' }}>{nombre}</p>}
+                      {!esMio && !mismoAnterior && (
+                        <div style={{ display:'flex', alignItems:'center', gap:8, margin:'0 0 3px 4px' }}>
+                          <p style={{ fontSize:11, fontWeight:700, color:'#6d28d9', margin:0 }}>{nombre}</p>
+                          <button onClick={() => abrirConversacion({ user_id:m.user_id, nombre, email:m.user_email })} style={{ fontSize:10, color:'#6d28d9', background:'#ede9fe', border:'none', borderRadius:10, padding:'2px 7px', cursor:'pointer', fontFamily:'inherit', fontWeight:600 }}>✉ Mensaje</button>
+                        </div>
+                      )}
                       <div style={{ background:esMio?'#7c3aed':'#fff', color:esMio?'#fff':'#111', borderRadius:esMio?'18px 18px 4px 18px':'18px 18px 18px 4px', padding:'10px 14px', fontSize:14, lineHeight:1.5, border:esMio?'none':'1px solid #e5e7eb', wordBreak:'break-word' as const }}>
                         {m.mensaje}
                       </div>
@@ -1295,6 +1370,86 @@ export default function Home() {
                   style={{ flex:1, border:'1px solid #d1d5db', borderRadius:24, padding:'10px 16px', fontSize:14, outline:'none', fontFamily:'inherit' }}
                 />
                 <button onClick={sendComunidad} disabled={comunidadSending || !comunidadMsg.trim()} style={{ width:44, height:44, background:'#7c3aed', border:'none', borderRadius:'50%', color:'#fff', fontSize:18, cursor:'pointer', flexShrink:0, opacity:(comunidadSending||!comunidadMsg.trim())?0.5:1 }}>➤</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {pantalla === 'mensajes' && (
+          <div style={{ padding:16, display:'flex', flexDirection:'column', gap:12 }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+              <h2 style={{ fontSize:20, fontWeight:800, margin:0, color:'#111' }}>✉️ Mensajes</h2>
+              <button onClick={() => userId && fetchConversaciones(userId)} style={{ fontSize:12, color:'#7c3aed', background:'none', border:'none', cursor:'pointer', fontFamily:'inherit', fontWeight:600 }}>Actualizar</button>
+            </div>
+            {conversaciones.length === 0 && (
+              <div style={{ textAlign:'center', padding:'48px 20px' }}>
+                <p style={{ fontSize:40, margin:'0 0 8px' }}>✉️</p>
+                <p style={{ fontWeight:700, fontSize:15, color:'#111', margin:'0 0 4px' }}>Sin mensajes aún</p>
+                <p style={{ fontSize:13, color:'#6b7280', margin:'0 0 16px' }}>Ve al chat de comunidad y escribe a alguien</p>
+                <button onClick={() => setPantalla('comunidad')} style={{ ...btn, background:'#7c3aed', fontSize:13 }}>Ir a Comunidad →</button>
+              </div>
+            )}
+            {conversaciones.map(c => (
+              <button key={c.user_id} onClick={() => abrirConversacion(c)} style={{ background:'#fff', border:`1px solid ${c.no_leidos>0?'#c4b5fd':'#e5e7eb'}`, borderRadius:16, padding:'14px 16px', cursor:'pointer', fontFamily:'inherit', display:'flex', alignItems:'center', gap:12, textAlign:'left' as const }}>
+                <div style={{ width:44, height:44, minWidth:44, background:'#ede9fe', borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, fontWeight:700, color:'#6d28d9' }}>
+                  {c.nombre.charAt(0).toUpperCase()}
+                </div>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:3 }}>
+                    <p style={{ fontWeight:700, fontSize:14, color:'#111', margin:0 }}>{c.nombre}</p>
+                    <p style={{ fontSize:11, color:'#9ca3af', margin:0, flexShrink:0 }}>{new Date(c.ultimo_tiempo).toLocaleTimeString('es-ES', { hour:'2-digit', minute:'2-digit' })}</p>
+                  </div>
+                  <p style={{ fontSize:13, color:'#6b7280', margin:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' as const }}>{c.ultimo_mensaje}</p>
+                </div>
+                {c.no_leidos > 0 && (
+                  <span style={{ background:'#7c3aed', color:'#fff', borderRadius:'50%', width:22, height:22, display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:700, flexShrink:0 }}>{c.no_leidos}</span>
+                )}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {pantalla === 'conversacion' && convActiva && (
+          <div style={{ display:'flex', flexDirection:'column', height:'100%' }}>
+            <div style={{ background:'#fff', borderBottom:'1px solid #e5e7eb', padding:'12px 16px', display:'flex', alignItems:'center', gap:12, flexShrink:0 }}>
+              <button onClick={() => setPantalla('mensajes')} style={{ background:'none', border:'none', fontSize:18, cursor:'pointer', padding:0, lineHeight:1 }}>←</button>
+              <div style={{ width:38, height:38, background:'#ede9fe', borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center', fontSize:16, fontWeight:700, color:'#6d28d9' }}>
+                {convActiva.nombre.charAt(0).toUpperCase()}
+              </div>
+              <div>
+                <p style={{ fontWeight:700, fontSize:14, color:'#111', margin:0 }}>{convActiva.nombre}</p>
+                <p style={{ fontSize:11, color:'#9ca3af', margin:0 }}>{convActiva.email}</p>
+              </div>
+            </div>
+            <div style={{ flex:1, overflowY:'auto', padding:'12px 14px', display:'flex', flexDirection:'column', gap:8 }}>
+              {convMensajes.length === 0 && (
+                <div style={{ textAlign:'center', paddingTop:40 }}>
+                  <p style={{ fontSize:36, margin:'0 0 8px' }}>👋</p>
+                  <p style={{ fontSize:13, color:'#6b7280' }}>Sé el primero en escribir</p>
+                </div>
+              )}
+              {convMensajes.map(m => {
+                const esMio = m.from_user_id === userId
+                return (
+                  <div key={m.id} style={{ display:'flex', justifyContent:esMio?'flex-end':'flex-start' }}>
+                    <div style={{ maxWidth:'76%' }}>
+                      <div style={{ background:esMio?'#7c3aed':'#fff', color:esMio?'#fff':'#111', borderRadius:esMio?'18px 18px 4px 18px':'18px 18px 18px 4px', padding:'10px 14px', fontSize:14, lineHeight:1.5, border:esMio?'none':'1px solid #e5e7eb', wordBreak:'break-word' as const }}>
+                        {m.mensaje}
+                      </div>
+                      <p style={{ fontSize:10, color:'#9ca3af', margin:'3px 4px 0', textAlign:esMio?'right':'left' }}>
+                        {new Date(m.created_at).toLocaleTimeString('es-ES', { hour:'2-digit', minute:'2-digit' })}
+                        {esMio && <span style={{ marginLeft:4 }}>{m.leido ? ' ✓✓' : ' ✓'}</span>}
+                      </p>
+                    </div>
+                  </div>
+                )
+              })}
+              <div ref={convBottomRef} />
+            </div>
+            <div style={{ padding:'10px 14px', background:'#fff', borderTop:'1px solid #e5e7eb', flexShrink:0 }}>
+              <div style={{ display:'flex', gap:8 }}>
+                <input value={convMsg} onChange={e => setConvMsg(e.target.value)} onKeyDown={e => e.key==='Enter' && !e.shiftKey && sendMensajePrivado()} placeholder={`Mensaje a ${convActiva.nombre}...`} style={{ flex:1, border:'1px solid #d1d5db', borderRadius:24, padding:'10px 16px', fontSize:14, outline:'none', fontFamily:'inherit' }} />
+                <button onClick={sendMensajePrivado} disabled={convSending || !convMsg.trim()} style={{ width:44, height:44, background:'#7c3aed', border:'none', borderRadius:'50%', color:'#fff', fontSize:18, cursor:'pointer', flexShrink:0, opacity:(convSending||!convMsg.trim())?0.5:1 }}>➤</button>
               </div>
             </div>
           </div>
