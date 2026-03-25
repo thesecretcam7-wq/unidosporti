@@ -86,7 +86,7 @@ const EMPTY_ALERTA: FormAlerta = { tipo:'empleo', sector:'', ciudad:'', precio_m
 
 type Organizacion = { id:string; user_id:string; nombre:string; tipo:string; descripcion:string; ciudad:string; web?:string; telefono?:string; email_contacto:string; plan:string; stripe_customer_id?:string; verificada:boolean; created_at:string }
 type RecursoOng = { id:string; org_id:string; org_nombre:string; org_verificada:boolean; tipo:string; titulo:string; descripcion:string; ciudad:string; direccion?:string; horario?:string; telefono?:string; email?:string; web?:string; gratuito:boolean; activo:boolean; created_at:string }
-type AnuncioNativo = { id:string; titulo:string; descripcion:string; cta:string; url:string; tipo_pantalla:string; activo:boolean }
+type AnuncioNativo = { id:string; org_nombre?:string; titulo:string; descripcion:string; cta:string; url:string; imagen_url?:string; tipo_pantalla:string; activo:boolean }
 type FormOrg = { nombre:string; tipo:string; descripcion:string; ciudad:string; web:string; telefono:string; email_contacto:string }
 type FormRecurso = { tipo:string; titulo:string; descripcion:string; ciudad:string; direccion:string; horario:string; telefono:string; email:string; web:string; gratuito:boolean }
 const EMPTY_ORG: FormOrg = { nombre:'', tipo:'ong', descripcion:'', ciudad:'', web:'', telefono:'', email_contacto:'' }
@@ -94,9 +94,9 @@ const EMPTY_RECURSO: FormRecurso = { tipo:'Asesoría jurídica', titulo:'', desc
 const TIPOS_RECURSO = ['Asesoría jurídica','Taller formativo','Alojamiento','Empleo','Apoyo psicológico','Banco de alimentos','Documentación','Otro']
 const TIPOS_ORG = [['ong','🏢 ONG / Entidad social'],['empresa','🏭 Empresa'],['administracion','🏛 Administración pública'],['gestor','👔 Gestoría / Despacho']]
 
-type CampanaAd = { id:string; org_id:string; org_nombre:string; titulo:string; descripcion:string; cta:string; url:string; tipo_pantalla:string; activo:boolean; status:string; duracion:string; precio_pagado:number; fecha_inicio?:string; fecha_fin?:string; stripe_session_id?:string; created_at:string }
-type FormAnuncio = { titulo:string; descripcion:string; cta:string; url:string; tipo_pantalla:string; duracion:string }
-const EMPTY_ANUNCIO: FormAnuncio = { titulo:'', descripcion:'', cta:'Ver más', url:'', tipo_pantalla:'empleo', duracion:'semana' }
+type CampanaAd = { id:string; org_id:string; org_nombre:string; titulo:string; descripcion:string; cta:string; url:string; imagen_url?:string; tipo_pantalla:string; activo:boolean; status:string; duracion:string; precio_pagado:number; fecha_inicio?:string; fecha_fin?:string; stripe_session_id?:string; created_at:string }
+type FormAnuncio = { titulo:string; descripcion:string; cta:string; url:string; imagen_url:string; tipo_pantalla:string; duracion:string }
+const EMPTY_ANUNCIO: FormAnuncio = { titulo:'', descripcion:'', cta:'Ver más', url:'', imagen_url:'', tipo_pantalla:'empleo', duracion:'semana' }
 const PAQUETES_PUB = [
   { id:'semana', label:'1 semana', precio:99, desc:'7 días visible · ideal para probar', badge:'', color:'#eff6ff', border:'#bfdbfe' },
   { id:'mes', label:'1 mes', precio:299, desc:'30 días · máximo alcance · más popular', badge:'⭐ Popular', color:'#f0fdf4', border:'#059669' },
@@ -663,6 +663,7 @@ export default function Home() {
           descripcion: formAnuncio.descripcion.trim(),
           cta: formAnuncio.cta.trim() || 'Ver más',
           url: formAnuncio.url.trim(),
+          imagen_url: formAnuncio.imagen_url.trim() || null,
           tipo_pantalla: formAnuncio.duracion === 'mes_todas' ? 'todas' : formAnuncio.tipo_pantalla,
           duracion: formAnuncio.duracion,
           precio: paquete.precio,
@@ -1344,14 +1345,15 @@ export default function Home() {
                   </button>
                 </div>
               ))}
-              {anunciosNativos.filter(a => a.tipo_pantalla === 'empleo').map(ad => (
-                <div key={ad.id} style={{ background:'linear-gradient(135deg,#eff6ff,#dbeafe)', border:'1px solid #93c5fd', borderRadius:16, padding:'14px 16px' }}>
-                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
-                    <span style={{ fontSize:10, background:'#1B4FCC', color:'#fff', padding:'2px 8px', borderRadius:10, fontWeight:700 }}>Patrocinado</span>
+              {anunciosNativos.filter(a => a.tipo_pantalla === 'empleo' || a.tipo_pantalla === 'todas').map(ad => (
+                <div key={ad.id} style={{ border:'1px solid #93c5fd', borderRadius:16, overflow:'hidden' }}>
+                  {ad.imagen_url && <img src={ad.imagen_url} alt={ad.titulo} style={{ width:'100%', maxHeight:160, objectFit:'cover', display:'block' }} />}
+                  <div style={{ background: ad.imagen_url ? '#fff' : 'linear-gradient(135deg,#eff6ff,#dbeafe)', padding:'12px 14px' }}>
+                    <span style={{ fontSize:10, background:'#1B4FCC', color:'#fff', padding:'2px 8px', borderRadius:10, fontWeight:700 }}>Patrocinado · {ad.org_nombre}</span>
+                    <p style={{ fontWeight:700, fontSize:14, color:'#1e3a8a', margin:'8px 0 4px' }}>{ad.titulo}</p>
+                    <p style={{ fontSize:13, color:'#374151', margin:'0 0 10px', lineHeight:1.5 }}>{ad.descripcion}</p>
+                    <a href={ad.url} target="_blank" rel="noopener noreferrer" style={{ display:'block', background:'#1B4FCC', color:'#fff', borderRadius:10, padding:'9px 0', fontSize:13, fontWeight:700, textDecoration:'none', textAlign:'center' as const }}>{ad.cta} →</a>
                   </div>
-                  <p style={{ fontWeight:700, fontSize:14, color:'#1e3a8a', margin:'0 0 4px' }}>{ad.titulo}</p>
-                  <p style={{ fontSize:13, color:'#374151', margin:'0 0 10px', lineHeight:1.5 }}>{ad.descripcion}</p>
-                  <a href={ad.url} target="_blank" rel="noopener noreferrer" style={{ display:'block', background:'#1B4FCC', color:'#fff', borderRadius:10, padding:'9px 0', fontSize:13, fontWeight:700, textDecoration:'none', textAlign:'center' as const }}>{ad.cta} →</a>
                 </div>
               ))}
               {dbEmpleosFiltrados.length > 0 && (
@@ -1456,14 +1458,15 @@ export default function Home() {
                   </div>
                 </div>
               ))}
-              {anunciosNativos.filter(a => a.tipo_pantalla === 'vivienda').map(ad => (
-                <div key={ad.id} style={{ background:'linear-gradient(135deg,#fffbeb,#fef3c7)', border:'1px solid #fcd34d', borderRadius:16, padding:'14px 16px' }}>
-                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
-                    <span style={{ fontSize:10, background:'#d97706', color:'#fff', padding:'2px 8px', borderRadius:10, fontWeight:700 }}>Patrocinado</span>
+              {anunciosNativos.filter(a => a.tipo_pantalla === 'vivienda' || a.tipo_pantalla === 'todas').map(ad => (
+                <div key={ad.id} style={{ border:'1px solid #fcd34d', borderRadius:16, overflow:'hidden' }}>
+                  {ad.imagen_url && <img src={ad.imagen_url} alt={ad.titulo} style={{ width:'100%', maxHeight:160, objectFit:'cover', display:'block' }} />}
+                  <div style={{ background: ad.imagen_url ? '#fff' : 'linear-gradient(135deg,#fffbeb,#fef3c7)', padding:'12px 14px' }}>
+                    <span style={{ fontSize:10, background:'#d97706', color:'#fff', padding:'2px 8px', borderRadius:10, fontWeight:700 }}>Patrocinado · {ad.org_nombre}</span>
+                    <p style={{ fontWeight:700, fontSize:14, color:'#78350f', margin:'8px 0 4px' }}>{ad.titulo}</p>
+                    <p style={{ fontSize:13, color:'#374151', margin:'0 0 10px', lineHeight:1.5 }}>{ad.descripcion}</p>
+                    <a href={ad.url} target="_blank" rel="noopener noreferrer" style={{ display:'block', background:'#d97706', color:'#fff', borderRadius:10, padding:'9px 0', fontSize:13, fontWeight:700, textDecoration:'none', textAlign:'center' as const }}>{ad.cta} →</a>
                   </div>
-                  <p style={{ fontWeight:700, fontSize:14, color:'#78350f', margin:'0 0 4px' }}>{ad.titulo}</p>
-                  <p style={{ fontSize:13, color:'#374151', margin:'0 0 10px', lineHeight:1.5 }}>{ad.descripcion}</p>
-                  <a href={ad.url} target="_blank" rel="noopener noreferrer" style={{ display:'block', background:'#d97706', color:'#fff', borderRadius:10, padding:'9px 0', fontSize:13, fontWeight:700, textDecoration:'none', textAlign:'center' as const }}>{ad.cta} →</a>
                 </div>
               ))}
               {dbViviendosFiltradas.length > 0 && (
@@ -2284,6 +2287,13 @@ export default function Home() {
                 <textarea value={formAnuncio.descripcion} onChange={e => setFormAnuncio(f => ({ ...f, descripcion:e.target.value.slice(0,120) }))} placeholder="Ej: Cruz Roja te ayuda con los trámites de forma gratuita. Sin cita previa." rows={2} style={{ width:'100%', border:'1px solid #d1d5db', borderRadius:10, padding:'10px 12px', fontSize:13, fontFamily:'inherit', outline:'none', resize:'none', boxSizing:'border-box' as const }} />
                 <p style={{ fontSize:11, color:'#9ca3af', margin:'3px 0 0', textAlign:'right' as const }}>{formAnuncio.descripcion.length}/120</p>
               </div>
+              <div>
+                <p style={{ fontSize:13, fontWeight:600, color:'#374151', margin:'0 0 5px' }}>
+                  🖼 Imagen del anuncio <span style={{ fontWeight:400, color:'#9ca3af' }}>(opcional — convierte en banner visual)</span>
+                </p>
+                <input value={formAnuncio.imagen_url} onChange={e => setFormAnuncio(f => ({ ...f, imagen_url:e.target.value }))} placeholder="https://tuempresa.com/imagen-banner.jpg" style={{ width:'100%', border:'1px solid #d1d5db', borderRadius:10, padding:'10px 12px', fontSize:13, fontFamily:'inherit', outline:'none', boxSizing:'border-box' as const }} />
+                <p style={{ fontSize:11, color:'#6b7280', margin:'4px 0 0' }}>Recomendado: 800×400px JPG/PNG · Sin imagen = anuncio de texto (también funciona muy bien)</p>
+              </div>
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
                 <div>
                   <p style={{ fontSize:13, fontWeight:600, color:'#374151', margin:'0 0 5px' }}>Texto del botón</p>
@@ -2299,12 +2309,17 @@ export default function Home() {
             {/* Preview */}
             {formAnuncio.titulo && (
               <div>
-                <p style={{ fontSize:12, fontWeight:600, color:'#6b7280', margin:'0 0 8px' }}>Vista previa del anuncio:</p>
-                <div style={{ background:'linear-gradient(135deg,#eff6ff,#dbeafe)', border:'1px solid #93c5fd', borderRadius:16, padding:'14px 16px' }}>
-                  <span style={{ fontSize:10, background:'#1B4FCC', color:'#fff', padding:'2px 8px', borderRadius:10, fontWeight:700 }}>Patrocinado · {miOrg.nombre}</span>
-                  <p style={{ fontWeight:700, fontSize:14, color:'#1e3a8a', margin:'8px 0 4px' }}>{formAnuncio.titulo || 'Título del anuncio'}</p>
-                  <p style={{ fontSize:13, color:'#374151', margin:'0 0 10px', lineHeight:1.5 }}>{formAnuncio.descripcion || 'Descripción del anuncio...'}</p>
-                  <div style={{ background:'#1B4FCC', color:'#fff', borderRadius:10, padding:'9px 16px', fontSize:13, fontWeight:700, display:'inline-block' }}>{formAnuncio.cta || 'Ver más'} →</div>
+                <p style={{ fontSize:12, fontWeight:600, color:'#6b7280', margin:'0 0 8px' }}>Vista previa:</p>
+                <div style={{ border:'1px solid #93c5fd', borderRadius:16, overflow:'hidden' }}>
+                  {formAnuncio.imagen_url && (
+                    <img src={formAnuncio.imagen_url} alt="Banner" style={{ width:'100%', maxHeight:160, objectFit:'cover', display:'block' }} onError={e => { (e.target as HTMLImageElement).style.display='none' }} />
+                  )}
+                  <div style={{ background: formAnuncio.imagen_url ? '#fff' : 'linear-gradient(135deg,#eff6ff,#dbeafe)', padding:'12px 14px' }}>
+                    <span style={{ fontSize:10, background:'#1B4FCC', color:'#fff', padding:'2px 8px', borderRadius:10, fontWeight:700 }}>Patrocinado · {miOrg.nombre}</span>
+                    <p style={{ fontWeight:700, fontSize:14, color:'#1e3a8a', margin:'8px 0 4px' }}>{formAnuncio.titulo}</p>
+                    <p style={{ fontSize:13, color:'#374151', margin:'0 0 10px', lineHeight:1.5 }}>{formAnuncio.descripcion}</p>
+                    <div style={{ background:'#1B4FCC', color:'#fff', borderRadius:10, padding:'9px 16px', fontSize:13, fontWeight:700, display:'inline-block' }}>{formAnuncio.cta || 'Ver más'} →</div>
+                  </div>
                 </div>
               </div>
             )}

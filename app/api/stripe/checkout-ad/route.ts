@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await adminClient.auth.getUser(token)
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { org_id, org_nombre, titulo, descripcion, cta, url, tipo_pantalla, duracion, precio, email } = await req.json()
+  const { org_id, org_nombre, titulo, descripcion, cta, url, imagen_url, tipo_pantalla, duracion, precio, email } = await req.json()
 
   if (!org_id || !titulo || !descripcion || !url || !precio) {
     return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
@@ -32,6 +32,7 @@ export async function POST(req: NextRequest) {
     descripcion,
     cta: cta || 'Ver más',
     url,
+    imagen_url: imagen_url || null,
     tipo_pantalla,
     duracion,
     precio_pagado: precio,
