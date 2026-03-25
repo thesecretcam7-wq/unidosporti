@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@supabase/supabase-js'
 
 const supabase = createClient(
@@ -7,7 +7,7 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 )
 
-type Pantalla = 'inicio' | 'empleo' | 'vivienda' | 'chat' | 'tramites' | 'perfil' | 'calculadora' | 'contrato' | 'nomina' | 'notificaciones' | 'admin' | 'publicar-empleo' | 'publicar-vivienda' | 'mis-publicaciones'
+type Pantalla = 'inicio' | 'empleo' | 'vivienda' | 'chat' | 'tramites' | 'perfil' | 'calculadora' | 'contrato' | 'nomina' | 'notificaciones' | 'admin' | 'publicar-empleo' | 'publicar-vivienda' | 'mis-publicaciones' | 'comunidad'
 type Ruta = 'arraigo_social' | 'arraigo_laboral' | 'arraigo_familiar'
 type Msg = { role: string; content: string }
 
@@ -63,6 +63,7 @@ const PAISES = ['Venezuela','Colombia','Honduras','Ecuador','México','Bolivia',
 const SITUACIONES = ['Sin documentación','NIE en trámite','Arraigo en proceso','Residencia temporal','Residencia permanente','Ciudadanía española']
 const ADMIN_EMAIL = 'thesecretcam7@gmail.com'
 
+type ChatMsg = { id:string; user_id:string; user_email:string; nombre:string|null; mensaje:string; created_at:string }
 type DbEmpleo = { id:string; user_id:string; user_email:string; empresa:string; sector:string; ciudad:string; salario:string; jornada:string; arraigo:boolean; precontrato:boolean; nie:boolean; desc:string; contacto_tipo:string; contacto_whatsapp?:string; contacto_email?:string; status:string }
 type DbVivienda = { id:string; user_id:string; user_email:string; tipo:string; titulo:string; ciudad:string; barrio:string; precio:number; fianza:number; sin_nomina:boolean; extranjeros:boolean; m2?:number; desc:string; contacto_tipo:string; contacto_whatsapp?:string; contacto_email?:string; status:string }
 type FormEmpleo = { empresa:string; sector:string; ciudad:string; salario:string; jornada:string; arraigo:boolean; precontrato:boolean; nie:boolean; desc:string; contacto_tipo:string; contacto_whatsapp:string; contacto_email:string }
@@ -142,6 +143,10 @@ export default function Home() {
   const [moderandoId, setModerandoId] = useState<string|null>(null)
   const [formEmp, setFormEmp] = useState<FormEmpleo>(EMPTY_EMP)
   const [formViv, setFormViv] = useState<FormVivienda>(EMPTY_VIV)
+  const [comunidadMsgs, setComunidadMsgs] = useState<ChatMsg[]>([])
+  const [comunidadMsg, setComunidadMsg] = useState('')
+  const [comunidadSending, setComunidadSending] = useState(false)
+  const comunidadBottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data }) => {
@@ -264,6 +269,27 @@ export default function Home() {
     await fetchPendientes()
     if (userId) await fetchDbListings(userId)
     setModerandoId(null)
+  }
+
+  useEffect(() => {
+    supabase.from('chat_comunidad').select('*').order('created_at', { ascending:true }).limit(80).then(({ data }) => {
+      setComunidadMsgs(data ?? [])
+      setTimeout(() => comunidadBottomRef.current?.scrollIntoView({ behavior:'smooth' }), 100)
+    })
+    const channel = supabase.channel('chat_comunidad_rt').on('postgres_changes' as any, { event:'INSERT', schema:'public', table:'chat_comunidad' }, (payload: any) => {
+      setComunidadMsgs(prev => [...prev, payload.new as ChatMsg])
+      setTimeout(() => comunidadBottomRef.current?.scrollIntoView({ behavior:'smooth' }), 50)
+    }).subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [])
+
+  async function sendComunidad() {
+    if (!comunidadMsg.trim() || comunidadSending || !userId || !userEmail) return
+    setComunidadSending(true)
+    const texto = comunidadMsg.trim()
+    setComunidadMsg('')
+    await supabase.from('chat_comunidad').insert({ user_id:userId, user_email:userEmail, nombre:editNombre||null, mensaje:texto })
+    setComunidadSending(false)
   }
 
   async function loadProfile(userId: string) {
@@ -1216,13 +1242,68 @@ export default function Home() {
           </div>
         )}
 
+        {pantalla === 'comunidad' && (
+          <div style={{ display:'flex', flexDirection:'column', height:'100%' }}>
+            <div style={{ background:'linear-gradient(135deg,#6d28d9,#7c3aed)', padding:'14px 16px 10px', flexShrink:0 }}>
+              <h2 style={{ color:'#fff', fontSize:18, fontWeight:800, margin:'0 0 2px' }}>👥 Chat Comunidad</h2>
+              <p style={{ color:'rgba(255,255,255,0.8)', fontSize:12, margin:0 }}>Conéctate con otros migrantes en España</p>
+            </div>
+            <div style={{ flex:1, overflowY:'auto', padding:'12px 14px', display:'flex', flexDirection:'column', gap:10 }}>
+              {comunidadMsgs.length === 0 && (
+                <div style={{ textAlign:'center', paddingTop:40 }}>
+                  <p style={{ fontSize:40, margin:'0 0 8px' }}>👋</p>
+                  <p style={{ fontWeight:700, fontSize:16, color:'#111', margin:'0 0 4px' }}>¡Sé el primero en saludar!</p>
+                  <p style={{ fontSize:13, color:'#6b7280', margin:0 }}>Este es el espacio para conocer personas, compartir experiencias y apoyarse</p>
+                </div>
+              )}
+              {comunidadMsgs.map((m, i) => {
+                const esMio = m.user_id === userId
+                const nombre = m.nombre || m.user_email.split('@')[0]
+                const inicial = nombre.charAt(0).toUpperCase()
+                const mismoAnterior = i > 0 && comunidadMsgs[i-1].user_id === m.user_id
+                return (
+                  <div key={m.id} style={{ display:'flex', flexDirection:esMio?'row-reverse':'row', gap:8, alignItems:'flex-end' }}>
+                    {!esMio && (
+                      <div style={{ width:32, height:32, minWidth:32, background:mismoAnterior?'transparent':'#ede9fe', borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, fontWeight:700, color:'#6d28d9' }}>
+                        {mismoAnterior ? '' : inicial}
+                      </div>
+                    )}
+                    <div style={{ maxWidth:'72%' }}>
+                      {!esMio && !mismoAnterior && <p style={{ fontSize:11, fontWeight:700, color:'#6d28d9', margin:'0 0 3px 4px' }}>{nombre}</p>}
+                      <div style={{ background:esMio?'#7c3aed':'#fff', color:esMio?'#fff':'#111', borderRadius:esMio?'18px 18px 4px 18px':'18px 18px 18px 4px', padding:'10px 14px', fontSize:14, lineHeight:1.5, border:esMio?'none':'1px solid #e5e7eb', wordBreak:'break-word' as const }}>
+                        {m.mensaje}
+                      </div>
+                      <p style={{ fontSize:10, color:'#9ca3af', margin:'3px 4px 0', textAlign:esMio?'right':'left' }}>
+                        {new Date(m.created_at).toLocaleTimeString('es-ES', { hour:'2-digit', minute:'2-digit' })}
+                      </p>
+                    </div>
+                  </div>
+                )
+              })}
+              <div ref={comunidadBottomRef} />
+            </div>
+            <div style={{ padding:'10px 14px', background:'#fff', borderTop:'1px solid #e5e7eb', flexShrink:0 }}>
+              <div style={{ display:'flex', gap:8, alignItems:'flex-end' }}>
+                <input
+                  value={comunidadMsg}
+                  onChange={e => setComunidadMsg(e.target.value)}
+                  onKeyDown={e => e.key==='Enter' && !e.shiftKey && sendComunidad()}
+                  placeholder="Escribe un mensaje..."
+                  style={{ flex:1, border:'1px solid #d1d5db', borderRadius:24, padding:'10px 16px', fontSize:14, outline:'none', fontFamily:'inherit' }}
+                />
+                <button onClick={sendComunidad} disabled={comunidadSending || !comunidadMsg.trim()} style={{ width:44, height:44, background:'#7c3aed', border:'none', borderRadius:'50%', color:'#fff', fontSize:18, cursor:'pointer', flexShrink:0, opacity:(comunidadSending||!comunidadMsg.trim())?0.5:1 }}>➤</button>
+              </div>
+            </div>
+          </div>
+        )}
+
       </div>
 
       <nav style={{ position:'fixed', bottom:0, left:'50%', transform:'translateX(-50%)', width:'100%', maxWidth:480, background:'#fff', borderTop:'1px solid #e5e7eb', display:'flex', zIndex:100 }}>
         {[
           { id:'inicio', icon:'🏠', label:'Inicio' },
           { id:'empleo', icon:'💼', label:'Trabajo' },
-          { id:'vivienda', icon:'🏠', label:'Vivienda' },
+          { id:'comunidad', icon:'👥', label:'Comunidad' },
           { id:'chat', icon:'🤖', label:'Chat IA' },
           { id:'tramites', icon:'📋', label:'Trámites' },
         ].map(({ id, icon, label }) => (
