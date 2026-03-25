@@ -226,9 +226,7 @@ export default function Home() {
 
   if (sessionLoading) return (
     <div style={{ ...wrap, alignItems:'center', justifyContent:'center' }}>
-      <div style={{ width:56, height:56, background:'#1B4FCC', borderRadius:16, display:'flex', alignItems:'center', justifyContent:'center', marginBottom:16 }}>
-        <span style={{ color:'#fff', fontWeight:800, fontSize:24 }}>U</span>
-      </div>
+      <img src="/logo.png" alt="UnidosPorTi" style={{ width:56, height:56, objectFit:'contain', marginBottom:16 }} />
       <p style={{ color:'#9ca3af', fontSize:14 }}>Cargando...</p>
     </div>
   );
@@ -236,9 +234,7 @@ export default function Home() {
   if (!userEmail) return (
     <div style={{ ...wrap, overflowY:'auto', background:'#f0f4ff' }}>
       <div style={{ background:'linear-gradient(160deg,#1B4FCC 0%,#1e3a8a 100%)', padding:'44px 24px 32px', display:'flex', flexDirection:'column', alignItems:'center', gap:14, textAlign:'center' }}>
-        <div style={{ width:64, height:64, background:'rgba(255,255,255,0.15)', borderRadius:18, display:'flex', alignItems:'center', justifyContent:'center' }}>
-          <span style={{ color:'#fff', fontWeight:900, fontSize:28 }}>U</span>
-        </div>
+        <img src="/logo.png" alt="UnidosPorTi" style={{ width:64, height:64, objectFit:'contain' }} />
         <div>
           <h1 style={{ fontSize:32, fontWeight:900, color:'#fff', margin:'0 0 8px', letterSpacing:-1 }}>UnidosPorTi</h1>
           <p style={{ fontSize:17, color:'rgba(255,255,255,0.95)', margin:'0 0 8px', fontWeight:700 }}>Tu guía para vivir mejor en España 🇪🇸</p>
@@ -283,9 +279,7 @@ export default function Home() {
     <div style={wrap}>
       <header style={{ background:'#fff', borderBottom:'1px solid #e5e7eb', padding:'10px 16px', display:'flex', alignItems:'center', justifyContent:'space-between', flexShrink:0 }}>
         <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-          <div style={{ width:32, height:32, background:'#1B4FCC', borderRadius:8, display:'flex', alignItems:'center', justifyContent:'center' }}>
-            <span style={{ color:'#fff', fontWeight:700, fontSize:14 }}>U</span>
-          </div>
+          <img src="/logo.png" alt="UnidosPorTi" style={{ width:32, height:32, objectFit:'contain' }} />
           <span style={{ fontWeight:700, color:'#111', fontSize:16 }}>UnidosPorTi</span>
         </div>
         <div style={{ display:'flex', gap:8, alignItems:'center' }}>
