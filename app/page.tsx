@@ -7,7 +7,7 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 )
 
-type Pantalla = 'inicio' | 'empleo' | 'vivienda' | 'chat' | 'tramites' | 'perfil' | 'calculadora' | 'contrato' | 'nomina' | 'notificaciones' | 'admin'
+type Pantalla = 'inicio' | 'empleo' | 'vivienda' | 'chat' | 'tramites' | 'perfil' | 'calculadora' | 'contrato' | 'nomina' | 'notificaciones' | 'admin' | 'publicar-empleo' | 'publicar-vivienda' | 'mis-publicaciones'
 type Ruta = 'arraigo_social' | 'arraigo_laboral' | 'arraigo_familiar'
 type Msg = { role: string; content: string }
 
@@ -62,6 +62,13 @@ const TIPOS_VIV = ['Todos','Habitación','Piso']
 const PAISES = ['Venezuela','Colombia','Honduras','Ecuador','México','Bolivia','Paraguay','Uruguay','Perú','Argentina','Marruecos','Senegal','Nigeria','Rumania','Ucrania','China','Otro']
 const SITUACIONES = ['Sin documentación','NIE en trámite','Arraigo en proceso','Residencia temporal','Residencia permanente','Ciudadanía española']
 const ADMIN_EMAIL = 'thesecretcam7@gmail.com'
+
+type DbEmpleo = { id:string; user_id:string; user_email:string; empresa:string; sector:string; ciudad:string; salario:string; jornada:string; arraigo:boolean; precontrato:boolean; nie:boolean; desc:string; contacto_tipo:string; contacto_whatsapp?:string; contacto_email?:string; status:string }
+type DbVivienda = { id:string; user_id:string; user_email:string; tipo:string; titulo:string; ciudad:string; barrio:string; precio:number; fianza:number; sin_nomina:boolean; extranjeros:boolean; m2?:number; desc:string; contacto_tipo:string; contacto_whatsapp?:string; contacto_email?:string; status:string }
+type FormEmpleo = { empresa:string; sector:string; ciudad:string; salario:string; jornada:string; arraigo:boolean; precontrato:boolean; nie:boolean; desc:string; contacto_tipo:string; contacto_whatsapp:string; contacto_email:string }
+type FormVivienda = { tipo:string; titulo:string; ciudad:string; barrio:string; precio:string; fianza:string; sin_nomina:boolean; extranjeros:boolean; m2:string; desc:string; contacto_tipo:string; contacto_whatsapp:string; contacto_email:string }
+const EMPTY_EMP: FormEmpleo = { empresa:'', sector:'Agricultura', ciudad:'', salario:'', jornada:'Completa', arraigo:false, precontrato:false, nie:false, desc:'', contacto_tipo:'ambos', contacto_whatsapp:'', contacto_email:'' }
+const EMPTY_VIV: FormVivienda = { tipo:'Habitación', titulo:'', ciudad:'', barrio:'', precio:'', fianza:'1', sin_nomina:false, extranjeros:true, m2:'', desc:'', contacto_tipo:'ambos', contacto_whatsapp:'', contacto_email:'' }
 
 function GoogleIcon() {
   return (
@@ -124,21 +131,140 @@ export default function Home() {
   const [nominaLoading, setNominaLoading] = useState(false)
   const [notifs, setNotifs] = useState(NOTIFICACIONES_INIT)
   const notifCount = notifs.filter(n => !n.leida).length
+  const [userId, setUserId] = useState<string|null>(null)
+  const [dbEmpleos, setDbEmpleos] = useState<DbEmpleo[]>([])
+  const [dbViviendas, setDbViviendas] = useState<DbVivienda[]>([])
+  const [misEmpleos, setMisEmpleos] = useState<DbEmpleo[]>([])
+  const [misViviendas, setMisViviendas] = useState<DbVivienda[]>([])
+  const [pendienteEmpleos, setPendienteEmpleos] = useState<DbEmpleo[]>([])
+  const [pendienteViviendas, setPendienteViviendas] = useState<DbVivienda[]>([])
+  const [savingListing, setSavingListing] = useState(false)
+  const [moderandoId, setModerandoId] = useState<string|null>(null)
+  const [formEmp, setFormEmp] = useState<FormEmpleo>(EMPTY_EMP)
+  const [formViv, setFormViv] = useState<FormVivienda>(EMPTY_VIV)
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data }) => {
       const email = data.session?.user?.email ?? null
       setUserEmail(email)
-      if (data.session?.user) await loadProfile(data.session.user.id)
-      else setSessionLoading(false)
+      if (data.session?.user) {
+        setUserId(data.session.user.id)
+        await loadProfile(data.session.user.id)
+        await fetchDbListings(data.session.user.id)
+      } else setSessionLoading(false)
     })
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_e, session) => {
       setUserEmail(session?.user?.email ?? null)
-      if (session?.user) await loadProfile(session.user.id)
-      else setSessionLoading(false)
+      if (session?.user) {
+        setUserId(session.user.id)
+        await loadProfile(session.user.id)
+        await fetchDbListings(session.user.id)
+      } else {
+        setUserId(null)
+        setSessionLoading(false)
+      }
     })
     return () => subscription.unsubscribe()
   }, [])
+
+  async function fetchDbListings(uid: string) {
+    const [{ data: emp }, { data: viv }] = await Promise.all([
+      supabase.from('empleos_usuarios').select('*').eq('status', 'aprobado').order('created_at', { ascending:false }),
+      supabase.from('viviendas_usuarios').select('*').eq('status', 'aprobado').order('created_at', { ascending:false }),
+    ])
+    setDbEmpleos(emp ?? [])
+    setDbViviendas(viv ?? [])
+    const [{ data: mis_emp }, { data: mis_viv }] = await Promise.all([
+      supabase.from('empleos_usuarios').select('*').eq('user_id', uid).order('created_at', { ascending:false }),
+      supabase.from('viviendas_usuarios').select('*').eq('user_id', uid).order('created_at', { ascending:false }),
+    ])
+    setMisEmpleos(mis_emp ?? [])
+    setMisViviendas(mis_viv ?? [])
+  }
+
+  async function publishEmpleo() {
+    if (!formEmp.empresa.trim() || !formEmp.ciudad.trim() || !formEmp.salario.trim() || !formEmp.desc.trim()) return
+    if (!userId || !userEmail) return
+    setSavingListing(true)
+    try {
+      const { error } = await supabase.from('empleos_usuarios').insert({
+        user_id: userId, user_email: userEmail,
+        empresa: formEmp.empresa.trim(), sector: formEmp.sector, ciudad: formEmp.ciudad.trim(),
+        salario: formEmp.salario.trim(), jornada: formEmp.jornada,
+        arraigo: formEmp.arraigo, precontrato: formEmp.precontrato, nie: formEmp.nie,
+        desc: formEmp.desc.trim(), contacto_tipo: formEmp.contacto_tipo,
+        contacto_whatsapp: formEmp.contacto_whatsapp.trim() || null,
+        contacto_email: formEmp.contacto_email.trim() || null,
+        status: 'pendiente',
+      })
+      if (error) throw error
+      setFormEmp(EMPTY_EMP)
+      setPantalla('mis-publicaciones')
+      await fetchDbListings(userId)
+    } catch { alert('Error al publicar') }
+    setSavingListing(false)
+  }
+
+  async function publishVivienda() {
+    if (!formViv.titulo.trim() || !formViv.ciudad.trim() || !formViv.barrio.trim() || !formViv.desc.trim() || !formViv.precio) return
+    if (!userId || !userEmail) return
+    setSavingListing(true)
+    try {
+      const { error } = await supabase.from('viviendas_usuarios').insert({
+        user_id: userId, user_email: userEmail,
+        tipo: formViv.tipo, titulo: formViv.titulo.trim(),
+        ciudad: formViv.ciudad.trim(), barrio: formViv.barrio.trim(),
+        precio: Number(formViv.precio), fianza: Number(formViv.fianza),
+        sin_nomina: formViv.sin_nomina, extranjeros: formViv.extranjeros,
+        m2: formViv.m2 ? Number(formViv.m2) : null,
+        desc: formViv.desc.trim(), contacto_tipo: formViv.contacto_tipo,
+        contacto_whatsapp: formViv.contacto_whatsapp.trim() || null,
+        contacto_email: formViv.contacto_email.trim() || null,
+        status: 'pendiente',
+      })
+      if (error) throw error
+      setFormViv(EMPTY_VIV)
+      setPantalla('mis-publicaciones')
+      await fetchDbListings(userId)
+    } catch { alert('Error al publicar') }
+    setSavingListing(false)
+  }
+
+  async function deleteMiEmpleo(id: string) {
+    if (!confirm('¿Eliminar esta publicación?')) return
+    await supabase.from('empleos_usuarios').delete().eq('id', id)
+    if (userId) await fetchDbListings(userId)
+  }
+
+  async function deleteMiVivienda(id: string) {
+    if (!confirm('¿Eliminar esta publicación?')) return
+    await supabase.from('viviendas_usuarios').delete().eq('id', id)
+    if (userId) await fetchDbListings(userId)
+  }
+
+  async function fetchPendientes() {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) return
+    const r = await fetch('/api/admin/pending', { headers: { authorization: `Bearer ${session.access_token}` } })
+    if (!r.ok) return
+    const d = await r.json()
+    setPendienteEmpleos(d.empleos ?? [])
+    setPendienteViviendas(d.viviendas ?? [])
+  }
+
+  async function moderate(table: string, id: string, action: 'aprobar' | 'rechazar') {
+    setModerandoId(id)
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) return
+    await fetch('/api/admin/moderate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({ table, id, action }),
+    })
+    await fetchPendientes()
+    if (userId) await fetchDbListings(userId)
+    setModerandoId(null)
+  }
 
   async function loadProfile(userId: string) {
     try {
@@ -220,6 +346,20 @@ export default function Home() {
     return (!q || v.titulo.toLowerCase().includes(q) || v.ciudad.toLowerCase().includes(q) || v.barrio.toLowerCase().includes(q))
       && (ciudadVivFilt==='Todas'||v.ciudad===ciudadVivFilt) && (tipoVivFilt==='Todos'||v.tipo===tipoVivFilt)
       && (!soloSinNomina||v.sinNomina) && v.precio<=precioMax
+  })
+
+  const dbEmpleosFiltrados = dbEmpleos.filter(e => {
+    const q = busqEmp.toLowerCase()
+    return (!q || e.empresa.toLowerCase().includes(q) || e.sector.toLowerCase().includes(q) || e.ciudad.toLowerCase().includes(q))
+      && (sectorFilt==='Todos'||e.sector===sectorFilt) && (ciudadEmpFilt==='Todas'||e.ciudad===ciudadEmpFilt)
+      && (!soloArraigo||e.arraigo) && (!soloPrecontrato||e.precontrato)
+  })
+
+  const dbViviendosFiltradas = dbViviendas.filter(v => {
+    const q = busqViv.toLowerCase()
+    return (!q || v.titulo.toLowerCase().includes(q) || v.ciudad.toLowerCase().includes(q) || v.barrio.toLowerCase().includes(q))
+      && (ciudadVivFilt==='Todas'||v.ciudad===ciudadVivFilt) && (tipoVivFilt==='Todos'||v.tipo===tipoVivFilt)
+      && (!soloSinNomina||v.sin_nomina) && v.precio<=precioMax
   })
 
   const wrap: React.CSSProperties = { maxWidth:480, margin:'0 auto', height:'100dvh', display:'flex', flexDirection:'column', background:'#f8f9ff' }
@@ -394,6 +534,14 @@ export default function Home() {
                 {perfilGuardado ? '✅ Guardado correctamente' : perfilLoading ? 'Guardando...' : 'Guardar cambios'}
               </button>
             </div>
+            <button onClick={() => setPantalla('mis-publicaciones')} style={{ background:'#f0fdf4', border:'1px solid #bbf7d0', borderRadius:14, padding:'14px 16px', cursor:'pointer', fontFamily:'inherit', display:'flex', alignItems:'center', gap:12, textAlign:'left' as const, width:'100%' }}>
+              <span style={{ fontSize:24 }}>📋</span>
+              <div style={{ flex:1 }}>
+                <p style={{ fontWeight:700, fontSize:14, color:'#065f46', margin:0 }}>Mis publicaciones</p>
+                <p style={{ fontSize:12, color:'#6b7280', margin:0 }}>{misEmpleos.length + misViviendas.length} publicación{misEmpleos.length + misViviendas.length !== 1 ? 'es' : ''}</p>
+              </div>
+              <span style={{ color:'#9ca3af' }}>→</span>
+            </button>
             {editSituacion && (
               <div style={{ background:'#eff6ff', border:'1px solid #bfdbfe', borderRadius:16, padding:16 }}>
                 <p style={{ fontWeight:700, fontSize:14, color:'#1e3a8a', margin:'0 0 8px' }}>📋 Según tu situación:</p>
@@ -552,6 +700,47 @@ export default function Home() {
               ))}
             </div>
             <div style={{ background:'#fff', border:'1px solid #e5e7eb', borderRadius:16, padding:16 }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
+                <p style={{ fontWeight:700, fontSize:15, margin:0, color:'#111' }}>🕐 Moderación pendiente</p>
+                <button onClick={fetchPendientes} style={{ fontSize:12, color:'#1B4FCC', background:'none', border:'none', cursor:'pointer', fontFamily:'inherit', fontWeight:600 }}>Actualizar</button>
+              </div>
+              {pendienteEmpleos.length === 0 && pendienteViviendas.length === 0 && (
+                <p style={{ fontSize:13, color:'#9ca3af', margin:0, textAlign:'center', padding:'12px 0' }}>No hay publicaciones pendientes ✅</p>
+              )}
+              {pendienteEmpleos.map(e => (
+                <div key={e.id} style={{ borderBottom:'1px solid #f3f4f6', padding:'12px 0' }}>
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:6 }}>
+                    <div>
+                      <span style={{ fontSize:10, background:'#fef3c7', color:'#92400e', padding:'2px 6px', borderRadius:8, fontWeight:700 }}>EMPLEO</span>
+                      <p style={{ fontWeight:700, fontSize:14, color:'#111', margin:'4px 0 0' }}>{e.empresa} — {e.ciudad}</p>
+                      <p style={{ fontSize:12, color:'#6b7280', margin:0 }}>{e.sector} · {e.salario} · por {e.user_email}</p>
+                    </div>
+                  </div>
+                  <p style={{ fontSize:12, color:'#374151', margin:'0 0 8px', lineHeight:1.4 }}>{e.desc}</p>
+                  <div style={{ display:'flex', gap:8 }}>
+                    <button onClick={() => moderate('empleos_usuarios', e.id, 'aprobar')} disabled={moderandoId===e.id} style={{ flex:1, background:'#065f46', color:'#fff', border:'none', borderRadius:10, padding:'8px 0', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit', opacity:moderandoId===e.id?0.6:1 }}>✅ Aprobar</button>
+                    <button onClick={() => moderate('empleos_usuarios', e.id, 'rechazar')} disabled={moderandoId===e.id} style={{ flex:1, background:'#dc2626', color:'#fff', border:'none', borderRadius:10, padding:'8px 0', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit', opacity:moderandoId===e.id?0.6:1 }}>❌ Rechazar</button>
+                  </div>
+                </div>
+              ))}
+              {pendienteViviendas.map(v => (
+                <div key={v.id} style={{ borderBottom:'1px solid #f3f4f6', padding:'12px 0' }}>
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:6 }}>
+                    <div>
+                      <span style={{ fontSize:10, background:'#eff6ff', color:'#1e40af', padding:'2px 6px', borderRadius:8, fontWeight:700 }}>VIVIENDA</span>
+                      <p style={{ fontWeight:700, fontSize:14, color:'#111', margin:'4px 0 0' }}>{v.titulo} — {v.ciudad}</p>
+                      <p style={{ fontSize:12, color:'#6b7280', margin:0 }}>{v.tipo} · {v.precio}€/mes · por {v.user_email}</p>
+                    </div>
+                  </div>
+                  <p style={{ fontSize:12, color:'#374151', margin:'0 0 8px', lineHeight:1.4 }}>{v.desc}</p>
+                  <div style={{ display:'flex', gap:8 }}>
+                    <button onClick={() => moderate('viviendas_usuarios', v.id, 'aprobar')} disabled={moderandoId===v.id} style={{ flex:1, background:'#065f46', color:'#fff', border:'none', borderRadius:10, padding:'8px 0', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit', opacity:moderandoId===v.id?0.6:1 }}>✅ Aprobar</button>
+                    <button onClick={() => moderate('viviendas_usuarios', v.id, 'rechazar')} disabled={moderandoId===v.id} style={{ flex:1, background:'#dc2626', color:'#fff', border:'none', borderRadius:10, padding:'8px 0', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit', opacity:moderandoId===v.id?0.6:1 }}>❌ Rechazar</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div style={{ background:'#fff', border:'1px solid #e5e7eb', borderRadius:16, padding:16 }}>
               <p style={{ fontWeight:700, fontSize:15, margin:'0 0 12px', color:'#111' }}>🏛️ ONGs Registradas</p>
               {[
                 { nombre:'Cruz Roja España', tipo:'Servicios generales', tel:'639 123 456' },
@@ -596,8 +785,11 @@ export default function Home() {
               </div>
             </div>
             <div style={{ flex:1, overflowY:'auto', padding:'12px 14px', display:'flex', flexDirection:'column', gap:12 }}>
-              <p style={{ fontSize:12, color:'#6b7280', margin:0 }}>{empleosFiltrados.length} ofertas encontradas</p>
-              {empleosFiltrados.length === 0 && <div style={{ textAlign:'center', padding:'40px 20px' }}><p style={{ fontSize:32 }}>🔍</p><p style={{ color:'#6b7280', fontSize:14 }}>No hay ofertas con esos filtros</p></div>}
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                <p style={{ fontSize:12, color:'#6b7280', margin:0 }}>{empleosFiltrados.length + dbEmpleosFiltrados.length} ofertas encontradas</p>
+                <button onClick={() => setPantalla('publicar-empleo')} style={{ background:'#065f46', color:'#fff', border:'none', borderRadius:20, padding:'6px 14px', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>+ Publicar oferta</button>
+              </div>
+              {empleosFiltrados.length === 0 && dbEmpleosFiltrados.length === 0 && <div style={{ textAlign:'center', padding:'40px 20px' }}><p style={{ fontSize:32 }}>🔍</p><p style={{ color:'#6b7280', fontSize:14 }}>No hay ofertas con esos filtros</p></div>}
               {empleosFiltrados.map(e => (
                 <div key={e.id} style={{ background:'#fff', border:'1px solid #e5e7eb', borderRadius:18, padding:16, boxShadow:'0 1px 4px rgba(0,0,0,0.06)' }}>
                   <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:8 }}>
@@ -618,6 +810,36 @@ export default function Home() {
                   </button>
                 </div>
               ))}
+              {dbEmpleosFiltrados.length > 0 && (
+                <>
+                  <p style={{ fontSize:11, fontWeight:700, color:'#6b7280', textTransform:'uppercase' as const, letterSpacing:1, margin:'4px 0 0' }}>Publicadas por la comunidad</p>
+                  {dbEmpleosFiltrados.map(e => (
+                    <div key={e.id} style={{ background:'#fff', border:'2px solid #bbf7d0', borderRadius:18, padding:16 }}>
+                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:8 }}>
+                        <div>
+                          <p style={{ fontWeight:800, fontSize:15, margin:'0 0 2px', color:'#111' }}>{e.empresa}</p>
+                          <p style={{ fontSize:12, color:'#6b7280', margin:0 }}>{e.sector} · {e.ciudad} · {e.jornada}</p>
+                        </div>
+                        <span style={{ fontWeight:800, color:'#065f46', fontSize:16, flexShrink:0 }}>{e.salario}<span style={{ fontSize:11, fontWeight:500 }}>/mes</span></span>
+                      </div>
+                      <p style={{ fontSize:13, color:'#374151', margin:'0 0 10px', lineHeight:1.5 }}>{e.desc}</p>
+                      <div style={{ display:'flex', gap:6, flexWrap:'wrap' as const, marginBottom:12 }}>
+                        {e.arraigo && <Badge text="✓ Acepta arraigo" color="green" />}
+                        {e.precontrato && <Badge text="✓ Firma precontrato" color="blue" />}
+                        {e.nie && <Badge text="✓ NIE en trámite OK" color="orange" />}
+                      </div>
+                      <div style={{ display:'flex', gap:8 }}>
+                        {(e.contacto_tipo === 'whatsapp' || e.contacto_tipo === 'ambos') && e.contacto_whatsapp && (
+                          <a href={`https://wa.me/${e.contacto_whatsapp.replace(/\D/g,'')}`} target="_blank" rel="noopener noreferrer" style={{ flex:1, background:'#25d366', color:'#fff', border:'none', borderRadius:12, padding:'10px 0', fontSize:13, fontWeight:700, cursor:'pointer', textDecoration:'none', display:'flex', alignItems:'center', justifyContent:'center' }}>WhatsApp</a>
+                        )}
+                        {(e.contacto_tipo === 'email' || e.contacto_tipo === 'ambos') && e.contacto_email && (
+                          <a href={`mailto:${e.contacto_email}`} style={{ flex:1, background:'#1B4FCC', color:'#fff', border:'none', borderRadius:12, padding:'10px 0', fontSize:13, fontWeight:700, cursor:'pointer', textDecoration:'none', display:'flex', alignItems:'center', justifyContent:'center' }}>Email</a>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </>
+              )}
             </div>
           </div>
         )}
@@ -648,7 +870,11 @@ export default function Home() {
               </div>
             </div>
             <div style={{ flex:1, overflowY:'auto', padding:'12px 14px', display:'flex', flexDirection:'column', gap:12 }}>
-              {viviendasFiltradas.length === 0 && <div style={{ textAlign:'center', padding:'40px 20px' }}><p style={{ fontSize:32 }}>🔍</p><p style={{ color:'#6b7280', fontSize:14 }}>No hay viviendas con esos filtros</p></div>}
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                <p style={{ fontSize:12, color:'#6b7280', margin:0 }}>{viviendasFiltradas.length + dbViviendosFiltradas.length} viviendas encontradas</p>
+                <button onClick={() => setPantalla('publicar-vivienda')} style={{ background:'#d97706', color:'#fff', border:'none', borderRadius:20, padding:'6px 14px', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>+ Publicar vivienda</button>
+              </div>
+              {viviendasFiltradas.length === 0 && dbViviendosFiltradas.length === 0 && <div style={{ textAlign:'center', padding:'40px 20px' }}><p style={{ fontSize:32 }}>🔍</p><p style={{ color:'#6b7280', fontSize:14 }}>No hay viviendas con esos filtros</p></div>}
               {viviendasFiltradas.map(v => (
                 <div key={v.id} style={{ background:'#fff', border:'1px solid #e5e7eb', borderRadius:18, boxShadow:'0 1px 4px rgba(0,0,0,0.06)' }}>
                   <div style={{ background:'linear-gradient(135deg,#fef3c7,#fde68a)', padding:'16px', display:'flex', alignItems:'center', gap:12 }}>
@@ -676,6 +902,43 @@ export default function Home() {
                   </div>
                 </div>
               ))}
+              {dbViviendosFiltradas.length > 0 && (
+                <>
+                  <p style={{ fontSize:11, fontWeight:700, color:'#6b7280', textTransform:'uppercase' as const, letterSpacing:1, margin:'4px 0 0' }}>Publicadas por la comunidad</p>
+                  {dbViviendosFiltradas.map(v => (
+                    <div key={v.id} style={{ background:'#fff', border:'2px solid #fde68a', borderRadius:18 }}>
+                      <div style={{ background:'linear-gradient(135deg,#fef3c7,#fde68a)', padding:'16px', display:'flex', alignItems:'center', gap:12 }}>
+                        <span style={{ fontSize:36 }}>🏠</span>
+                        <div>
+                          <span style={{ fontSize:11, background:'#92400e', color:'#fff', padding:'2px 8px', borderRadius:10, fontWeight:700 }}>{v.tipo}</span>
+                          <p style={{ fontWeight:800, fontSize:15, color:'#111', margin:'4px 0 0' }}>{v.titulo}</p>
+                        </div>
+                      </div>
+                      <div style={{ padding:14 }}>
+                        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
+                          <p style={{ fontSize:13, color:'#6b7280', margin:0 }}>📍 {v.barrio}, {v.ciudad}</p>
+                          <span style={{ fontWeight:800, color:'#92400e', fontSize:18 }}>{v.precio}€<span style={{ fontSize:11, fontWeight:500, color:'#6b7280' }}>/mes</span></span>
+                        </div>
+                        <p style={{ fontSize:13, color:'#374151', margin:'0 0 10px', lineHeight:1.5 }}>{v.desc}</p>
+                        <div style={{ display:'flex', gap:6, flexWrap:'wrap' as const, marginBottom:12 }}>
+                          {v.sin_nomina && <Badge text="✓ Sin nómina" color="green" />}
+                          {v.extranjeros && <Badge text="✓ Acepta extranjeros" color="blue" />}
+                          <Badge text={`Fianza: ${v.fianza} mes`} color="gray" />
+                          {v.m2 && <Badge text={`${v.m2}m²`} color="gray" />}
+                        </div>
+                        <div style={{ display:'flex', gap:8 }}>
+                          {(v.contacto_tipo === 'whatsapp' || v.contacto_tipo === 'ambos') && v.contacto_whatsapp && (
+                            <a href={`https://wa.me/${v.contacto_whatsapp.replace(/\D/g,'')}`} target="_blank" rel="noopener noreferrer" style={{ flex:1, background:'#25d366', color:'#fff', border:'none', borderRadius:12, padding:'10px 0', fontSize:13, fontWeight:700, cursor:'pointer', textDecoration:'none', display:'flex', alignItems:'center', justifyContent:'center' }}>WhatsApp</a>
+                          )}
+                          {(v.contacto_tipo === 'email' || v.contacto_tipo === 'ambos') && v.contacto_email && (
+                            <a href={`mailto:${v.contacto_email}`} style={{ flex:1, background:'#d97706', color:'#fff', border:'none', borderRadius:12, padding:'10px 0', fontSize:13, fontWeight:700, cursor:'pointer', textDecoration:'none', display:'flex', alignItems:'center', justifyContent:'center' }}>Email</a>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </>
+              )}
             </div>
           </div>
         )}
@@ -748,6 +1011,206 @@ export default function Home() {
                   </div>
                   <button onClick={() => setPantalla('chat')} style={{ ...btn, marginTop:16 }}>💬 Preguntar al Chat IA</button>
                 </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {pantalla === 'publicar-empleo' && (
+          <div style={{ padding:16, display:'flex', flexDirection:'column', gap:14 }}>
+            <div style={{ background:'linear-gradient(135deg,#065f46,#059669)', borderRadius:20, padding:'20px 24px', color:'#fff' }}>
+              <button onClick={() => setPantalla('empleo')} style={{ background:'rgba(255,255,255,0.2)', border:'none', borderRadius:10, padding:'4px 10px', color:'#fff', fontSize:12, cursor:'pointer', fontFamily:'inherit', marginBottom:10 }}>← Volver</button>
+              <h2 style={{ fontSize:20, fontWeight:800, margin:'0 0 4px' }}>💼 Publicar oferta de trabajo</h2>
+              <p style={{ fontSize:13, opacity:0.9, margin:0 }}>Se revisará antes de publicarse</p>
+            </div>
+            <div style={{ background:'#fff', border:'1px solid #e5e7eb', borderRadius:16, padding:16, display:'flex', flexDirection:'column', gap:12 }}>
+              {[
+                { label:'Empresa / Empleador *', key:'empresa', ph:'Nombre de la empresa' },
+                { label:'Ciudad *', key:'ciudad', ph:'Ciudad donde se trabaja' },
+                { label:'Salario *', key:'salario', ph:'Ej: 1.200€' },
+              ].map(({ label, key, ph }) => (
+                <div key={key}>
+                  <p style={{ fontSize:13, fontWeight:600, color:'#374151', margin:'0 0 5px' }}>{label}</p>
+                  <input value={(formEmp as any)[key]} onChange={e => setFormEmp(f => ({ ...f, [key]: e.target.value }))} placeholder={ph} style={{ width:'100%', border:'1px solid #d1d5db', borderRadius:10, padding:'10px 12px', fontSize:14, fontFamily:'inherit', outline:'none', boxSizing:'border-box' as const }} />
+                </div>
+              ))}
+              <div>
+                <p style={{ fontSize:13, fontWeight:600, color:'#374151', margin:'0 0 5px' }}>Sector *</p>
+                <select value={formEmp.sector} onChange={e => setFormEmp(f => ({ ...f, sector: e.target.value }))} style={{ width:'100%', border:'1px solid #d1d5db', borderRadius:10, padding:'10px 12px', fontSize:14, fontFamily:'inherit', outline:'none', background:'#fff', boxSizing:'border-box' as const }}>
+                  {SECTORES.filter(s => s !== 'Todos').map(s => <option key={s}>{s}</option>)}
+                </select>
+              </div>
+              <div>
+                <p style={{ fontSize:13, fontWeight:600, color:'#374151', margin:'0 0 5px' }}>Jornada</p>
+                <div style={{ display:'flex', gap:8 }}>
+                  {['Completa','Parcial'].map(j => (
+                    <button key={j} onClick={() => setFormEmp(f => ({ ...f, jornada: j }))} style={{ flex:1, background:formEmp.jornada===j?'#065f46':'#f3f4f6', color:formEmp.jornada===j?'#fff':'#374151', border:'none', borderRadius:10, padding:'9px 0', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>{j}</button>
+                  ))}
+                </div>
+              </div>
+              <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                {[
+                  { label:'Acepta arraigo social/laboral', key:'arraigo' },
+                  { label:'Firma precontrato', key:'precontrato' },
+                  { label:'NIE en trámite OK', key:'nie' },
+                ].map(({ label, key }) => (
+                  <label key={key} style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer' }}>
+                    <input type="checkbox" checked={(formEmp as any)[key]} onChange={e => setFormEmp(f => ({ ...f, [key]: e.target.checked }))} />
+                    <span style={{ fontSize:13, color:'#374151' }}>{label}</span>
+                  </label>
+                ))}
+              </div>
+              <div>
+                <p style={{ fontSize:13, fontWeight:600, color:'#374151', margin:'0 0 5px' }}>Descripción *</p>
+                <textarea value={formEmp.desc} onChange={e => setFormEmp(f => ({ ...f, desc: e.target.value }))} placeholder="Descripción del puesto, requisitos, condiciones..." rows={4} style={{ width:'100%', border:'1px solid #d1d5db', borderRadius:10, padding:'10px 12px', fontSize:13, fontFamily:'inherit', outline:'none', resize:'vertical', boxSizing:'border-box' as const }} />
+              </div>
+              <div>
+                <p style={{ fontSize:13, fontWeight:600, color:'#374151', margin:'0 0 5px' }}>Cómo contactar</p>
+                <div style={{ display:'flex', gap:8, marginBottom:10 }}>
+                  {[['whatsapp','WhatsApp'],['email','Email'],['ambos','Ambos']].map(([val, lab]) => (
+                    <button key={val} onClick={() => setFormEmp(f => ({ ...f, contacto_tipo: val }))} style={{ flex:1, background:formEmp.contacto_tipo===val?'#065f46':'#f3f4f6', color:formEmp.contacto_tipo===val?'#fff':'#374151', border:'none', borderRadius:10, padding:'8px 0', fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>{lab}</button>
+                  ))}
+                </div>
+                {(formEmp.contacto_tipo === 'whatsapp' || formEmp.contacto_tipo === 'ambos') && (
+                  <input value={formEmp.contacto_whatsapp} onChange={e => setFormEmp(f => ({ ...f, contacto_whatsapp: e.target.value }))} placeholder="Número WhatsApp (con código país, ej: +34600...)" style={{ width:'100%', border:'1px solid #d1d5db', borderRadius:10, padding:'10px 12px', fontSize:13, fontFamily:'inherit', outline:'none', boxSizing:'border-box' as const, marginBottom:8 }} />
+                )}
+                {(formEmp.contacto_tipo === 'email' || formEmp.contacto_tipo === 'ambos') && (
+                  <input value={formEmp.contacto_email} onChange={e => setFormEmp(f => ({ ...f, contacto_email: e.target.value }))} placeholder="Email de contacto" style={{ width:'100%', border:'1px solid #d1d5db', borderRadius:10, padding:'10px 12px', fontSize:13, fontFamily:'inherit', outline:'none', boxSizing:'border-box' as const }} />
+                )}
+              </div>
+              <button onClick={publishEmpleo} disabled={savingListing || !formEmp.empresa.trim() || !formEmp.ciudad.trim() || !formEmp.salario.trim() || !formEmp.desc.trim()} style={{ ...btn, background:'#065f46', opacity:(savingListing||!formEmp.empresa.trim()||!formEmp.ciudad.trim()||!formEmp.salario.trim()||!formEmp.desc.trim())?0.5:1 }}>
+                {savingListing ? 'Enviando...' : 'Enviar para revisión →'}
+              </button>
+            </div>
+            <div style={{ background:'#f0fdf4', border:'1px solid #bbf7d0', borderRadius:14, padding:14 }}>
+              <p style={{ fontSize:12, color:'#166534', margin:0 }}>💡 Tu publicación será revisada antes de aparecer. Recibirás respuesta en 24h.</p>
+            </div>
+          </div>
+        )}
+
+        {pantalla === 'publicar-vivienda' && (
+          <div style={{ padding:16, display:'flex', flexDirection:'column', gap:14 }}>
+            <div style={{ background:'linear-gradient(135deg,#78350f,#d97706)', borderRadius:20, padding:'20px 24px', color:'#fff' }}>
+              <button onClick={() => setPantalla('vivienda')} style={{ background:'rgba(255,255,255,0.2)', border:'none', borderRadius:10, padding:'4px 10px', color:'#fff', fontSize:12, cursor:'pointer', fontFamily:'inherit', marginBottom:10 }}>← Volver</button>
+              <h2 style={{ fontSize:20, fontWeight:800, margin:'0 0 4px' }}>🏠 Publicar vivienda</h2>
+              <p style={{ fontSize:13, opacity:0.9, margin:0 }}>Se revisará antes de publicarse</p>
+            </div>
+            <div style={{ background:'#fff', border:'1px solid #e5e7eb', borderRadius:16, padding:16, display:'flex', flexDirection:'column', gap:12 }}>
+              <div>
+                <p style={{ fontSize:13, fontWeight:600, color:'#374151', margin:'0 0 5px' }}>Tipo de vivienda</p>
+                <div style={{ display:'flex', gap:8 }}>
+                  {['Habitación','Piso'].map(t => (
+                    <button key={t} onClick={() => setFormViv(f => ({ ...f, tipo: t }))} style={{ flex:1, background:formViv.tipo===t?'#d97706':'#f3f4f6', color:formViv.tipo===t?'#fff':'#374151', border:'none', borderRadius:10, padding:'9px 0', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>{t}</button>
+                  ))}
+                </div>
+              </div>
+              {[
+                { label:'Título del anuncio *', key:'titulo', ph:'Ej: Habitación amplia en piso compartido' },
+                { label:'Ciudad *', key:'ciudad', ph:'Ciudad' },
+                { label:'Barrio *', key:'barrio', ph:'Barrio o zona' },
+                { label:'Precio mensual (€) *', key:'precio', ph:'Ej: 350', type:'number' },
+                { label:'Meses de fianza', key:'fianza', ph:'1', type:'number' },
+                { label:'Metros cuadrados', key:'m2', ph:'Ej: 14', type:'number' },
+              ].map(({ label, key, ph, type }) => (
+                <div key={key}>
+                  <p style={{ fontSize:13, fontWeight:600, color:'#374151', margin:'0 0 5px' }}>{label}</p>
+                  <input type={type||'text'} value={(formViv as any)[key]} onChange={e => setFormViv(f => ({ ...f, [key]: e.target.value }))} placeholder={ph} style={{ width:'100%', border:'1px solid #d1d5db', borderRadius:10, padding:'10px 12px', fontSize:14, fontFamily:'inherit', outline:'none', boxSizing:'border-box' as const }} />
+                </div>
+              ))}
+              <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                {[
+                  { label:'Sin nómina requerida', key:'sin_nomina' },
+                  { label:'Acepta extranjeros', key:'extranjeros' },
+                ].map(({ label, key }) => (
+                  <label key={key} style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer' }}>
+                    <input type="checkbox" checked={(formViv as any)[key]} onChange={e => setFormViv(f => ({ ...f, [key]: e.target.checked }))} />
+                    <span style={{ fontSize:13, color:'#374151' }}>{label}</span>
+                  </label>
+                ))}
+              </div>
+              <div>
+                <p style={{ fontSize:13, fontWeight:600, color:'#374151', margin:'0 0 5px' }}>Descripción *</p>
+                <textarea value={formViv.desc} onChange={e => setFormViv(f => ({ ...f, desc: e.target.value }))} placeholder="Describe la vivienda, normas, convivencia..." rows={4} style={{ width:'100%', border:'1px solid #d1d5db', borderRadius:10, padding:'10px 12px', fontSize:13, fontFamily:'inherit', outline:'none', resize:'vertical', boxSizing:'border-box' as const }} />
+              </div>
+              <div>
+                <p style={{ fontSize:13, fontWeight:600, color:'#374151', margin:'0 0 5px' }}>Cómo contactar</p>
+                <div style={{ display:'flex', gap:8, marginBottom:10 }}>
+                  {[['whatsapp','WhatsApp'],['email','Email'],['ambos','Ambos']].map(([val, lab]) => (
+                    <button key={val} onClick={() => setFormViv(f => ({ ...f, contacto_tipo: val }))} style={{ flex:1, background:formViv.contacto_tipo===val?'#d97706':'#f3f4f6', color:formViv.contacto_tipo===val?'#fff':'#374151', border:'none', borderRadius:10, padding:'8px 0', fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>{lab}</button>
+                  ))}
+                </div>
+                {(formViv.contacto_tipo === 'whatsapp' || formViv.contacto_tipo === 'ambos') && (
+                  <input value={formViv.contacto_whatsapp} onChange={e => setFormViv(f => ({ ...f, contacto_whatsapp: e.target.value }))} placeholder="Número WhatsApp (con código país, ej: +34600...)" style={{ width:'100%', border:'1px solid #d1d5db', borderRadius:10, padding:'10px 12px', fontSize:13, fontFamily:'inherit', outline:'none', boxSizing:'border-box' as const, marginBottom:8 }} />
+                )}
+                {(formViv.contacto_tipo === 'email' || formViv.contacto_tipo === 'ambos') && (
+                  <input value={formViv.contacto_email} onChange={e => setFormViv(f => ({ ...f, contacto_email: e.target.value }))} placeholder="Email de contacto" style={{ width:'100%', border:'1px solid #d1d5db', borderRadius:10, padding:'10px 12px', fontSize:13, fontFamily:'inherit', outline:'none', boxSizing:'border-box' as const }} />
+                )}
+              </div>
+              <button onClick={publishVivienda} disabled={savingListing || !formViv.titulo.trim() || !formViv.ciudad.trim() || !formViv.barrio.trim() || !formViv.desc.trim() || !formViv.precio} style={{ ...btn, background:'#d97706', opacity:(savingListing||!formViv.titulo.trim()||!formViv.ciudad.trim()||!formViv.barrio.trim()||!formViv.desc.trim()||!formViv.precio)?0.5:1 }}>
+                {savingListing ? 'Enviando...' : 'Enviar para revisión →'}
+              </button>
+            </div>
+            <div style={{ background:'#fffbeb', border:'1px solid #fde68a', borderRadius:14, padding:14 }}>
+              <p style={{ fontSize:12, color:'#92400e', margin:0 }}>💡 Tu publicación será revisada antes de aparecer. Recibirás respuesta en 24h.</p>
+            </div>
+          </div>
+        )}
+
+        {pantalla === 'mis-publicaciones' && (
+          <div style={{ padding:16, display:'flex', flexDirection:'column', gap:14 }}>
+            <div style={{ background:'linear-gradient(135deg,#1B4FCC,#2563eb)', borderRadius:20, padding:'20px 24px', color:'#fff' }}>
+              <button onClick={() => setPantalla('perfil')} style={{ background:'rgba(255,255,255,0.2)', border:'none', borderRadius:10, padding:'4px 10px', color:'#fff', fontSize:12, cursor:'pointer', fontFamily:'inherit', marginBottom:10 }}>← Volver</button>
+              <h2 style={{ fontSize:20, fontWeight:800, margin:'0 0 4px' }}>📋 Mis publicaciones</h2>
+              <p style={{ fontSize:13, opacity:0.9, margin:0 }}>{misEmpleos.length + misViviendas.length} publicación{misEmpleos.length + misViviendas.length !== 1 ? 'es' : ''} en total</p>
+            </div>
+            {misEmpleos.length === 0 && misViviendas.length === 0 && (
+              <div style={{ textAlign:'center', padding:'40px 20px' }}>
+                <p style={{ fontSize:32, margin:'0 0 8px' }}>📋</p>
+                <p style={{ color:'#6b7280', fontSize:14, margin:'0 0 16px' }}>Aún no has publicado nada</p>
+                <div style={{ display:'flex', gap:10 }}>
+                  <button onClick={() => setPantalla('publicar-empleo')} style={{ flex:1, ...btn, background:'#065f46', fontSize:13 }}>Publicar empleo</button>
+                  <button onClick={() => setPantalla('publicar-vivienda')} style={{ flex:1, ...btn, background:'#d97706', fontSize:13 }}>Publicar vivienda</button>
+                </div>
+              </div>
+            )}
+            {misEmpleos.length > 0 && (
+              <>
+                <p style={{ fontSize:13, fontWeight:700, color:'#374151', margin:0 }}>💼 Empleos</p>
+                {misEmpleos.map(e => (
+                  <div key={e.id} style={{ background:'#fff', border:'1px solid #e5e7eb', borderRadius:16, padding:14 }}>
+                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:6 }}>
+                      <div>
+                        <p style={{ fontWeight:700, fontSize:14, color:'#111', margin:0 }}>{e.empresa}</p>
+                        <p style={{ fontSize:12, color:'#6b7280', margin:0 }}>{e.sector} · {e.ciudad} · {e.salario}</p>
+                      </div>
+                      <span style={{ fontSize:11, padding:'3px 8px', borderRadius:20, fontWeight:700, background:e.status==='aprobado'?'#dcfce7':e.status==='rechazado'?'#fee2e2':'#fef3c7', color:e.status==='aprobado'?'#166534':e.status==='rechazado'?'#991b1b':'#92400e' }}>
+                        {e.status === 'aprobado' ? '✅ Publicado' : e.status === 'rechazado' ? '❌ Rechazado' : '⏳ En revisión'}
+                      </span>
+                    </div>
+                    <p style={{ fontSize:12, color:'#374151', margin:'0 0 10px', lineHeight:1.4 }}>{e.desc}</p>
+                    <button onClick={() => deleteMiEmpleo(e.id)} style={{ width:'100%', background:'#fee2e2', color:'#991b1b', border:'none', borderRadius:10, padding:'8px 0', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>Eliminar</button>
+                  </div>
+                ))}
+              </>
+            )}
+            {misViviendas.length > 0 && (
+              <>
+                <p style={{ fontSize:13, fontWeight:700, color:'#374151', margin:0 }}>🏠 Viviendas</p>
+                {misViviendas.map(v => (
+                  <div key={v.id} style={{ background:'#fff', border:'1px solid #e5e7eb', borderRadius:16, padding:14 }}>
+                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:6 }}>
+                      <div>
+                        <p style={{ fontWeight:700, fontSize:14, color:'#111', margin:0 }}>{v.titulo}</p>
+                        <p style={{ fontSize:12, color:'#6b7280', margin:0 }}>{v.tipo} · {v.ciudad} · {v.precio}€/mes</p>
+                      </div>
+                      <span style={{ fontSize:11, padding:'3px 8px', borderRadius:20, fontWeight:700, background:v.status==='aprobado'?'#dcfce7':v.status==='rechazado'?'#fee2e2':'#fef3c7', color:v.status==='aprobado'?'#166534':v.status==='rechazado'?'#991b1b':'#92400e' }}>
+                        {v.status === 'aprobado' ? '✅ Publicado' : v.status === 'rechazado' ? '❌ Rechazado' : '⏳ En revisión'}
+                      </span>
+                    </div>
+                    <p style={{ fontSize:12, color:'#374151', margin:'0 0 10px', lineHeight:1.4 }}>{v.desc}</p>
+                    <button onClick={() => deleteMiVivienda(v.id)} style={{ width:'100%', background:'#fee2e2', color:'#991b1b', border:'none', borderRadius:10, padding:'8px 0', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>Eliminar</button>
+                  </div>
+                ))}
               </>
             )}
           </div>
