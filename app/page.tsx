@@ -8,7 +8,7 @@ const supabase = createClient(
   { auth: { persistSession: true, detectSessionInUrl: true, autoRefreshToken: true } }
 )
 
-type Pantalla = 'inicio' | 'empleo' | 'vivienda' | 'chat' | 'tramites' | 'perfil' | 'calculadora' | 'contrato' | 'nomina' | 'notificaciones' | 'admin' | 'publicar-empleo' | 'publicar-vivienda' | 'mis-publicaciones' | 'comunidad' | 'mensajes' | 'conversacion' | 'premium'
+type Pantalla = 'inicio' | 'empleo' | 'vivienda' | 'chat' | 'tramites' | 'perfil' | 'calculadora' | 'contrato' | 'nomina' | 'notificaciones' | 'admin' | 'publicar-empleo' | 'publicar-vivienda' | 'mis-publicaciones' | 'comunidad' | 'mensajes' | 'conversacion' | 'premium' | 'citas' | 'nueva-cita'
 type Ruta = 'arraigo_social' | 'arraigo_laboral' | 'arraigo_familiar'
 type Msg = { role: string; content: string }
 
@@ -73,6 +73,22 @@ type FormEmpleo = { empresa:string; sector:string; ciudad:string; salario:string
 type FormVivienda = { tipo:string; titulo:string; ciudad:string; barrio:string; precio:string; fianza:string; sin_nomina:boolean; extranjeros:boolean; m2:string; desc:string; contacto_tipo:string; contacto_whatsapp:string; contacto_email:string }
 const EMPTY_EMP: FormEmpleo = { empresa:'', sector:'Agricultura', ciudad:'', salario:'', jornada:'Completa', arraigo:false, precontrato:false, nie:false, desc:'', contacto_tipo:'ambos', contacto_whatsapp:'', contacto_email:'' }
 const EMPTY_VIV: FormVivienda = { tipo:'Habitación', titulo:'', ciudad:'', barrio:'', precio:'', fianza:'1', sin_nomina:false, extranjeros:true, m2:'', desc:'', contacto_tipo:'ambos', contacto_whatsapp:'', contacto_email:'' }
+
+type Cita = { id:string; user_id:string; tipo:string; titulo:string; fecha:string; hora?:string; lugar?:string; notas?:string; completada:boolean; created_at:string }
+type FormCita = { tipo:string; titulo:string; fecha:string; hora:string; lugar:string; notas:string }
+const EMPTY_CITA: FormCita = { tipo:'Extranjería', titulo:'', fecha:'', hora:'', lugar:'', notas:'' }
+const TIPOS_CITA = ['Extranjería','Médico','Trabajo','Escuela','Banco','Abogado','Otro']
+
+function getDayLabel(fecha: string): { label:string; color:string; bg:string } {
+  const hoy = new Date(new Date().toDateString())
+  const d = new Date(fecha + 'T00:00:00')
+  const diff = Math.round((d.getTime() - hoy.getTime()) / (1000*60*60*24))
+  if (diff === 0) return { label:'Hoy', color:'#d97706', bg:'#fef3c7' }
+  if (diff === 1) return { label:'Mañana', color:'#1d4ed8', bg:'#dbeafe' }
+  if (diff > 1 && diff <= 7) return { label:`En ${diff} días`, color:'#059669', bg:'#d1fae5' }
+  if (diff > 7) return { label:`${new Date(fecha+'T00:00:00').toLocaleDateString('es-ES',{day:'numeric',month:'short'})}`, color:'#6b7280', bg:'#f3f4f6' }
+  return { label:`Hace ${Math.abs(diff)} día${Math.abs(diff)!==1?'s':''}`, color:'#991b1b', bg:'#fee2e2' }
+}
 
 function GoogleIcon() {
   return (
@@ -162,6 +178,9 @@ export default function Home() {
   const [premiumLoading, setPremiumLoading] = useState(false)
   const [premiumSuccess, setPremiumSuccess] = useState(false)
   const CHAT_LIMITE_FREE = 5
+  const [citas, setCitas] = useState<Cita[]>([])
+  const [citaSaving, setCitaSaving] = useState(false)
+  const [formCita, setFormCita] = useState<FormCita>(EMPTY_CITA)
 
   useEffect(() => {
     const key = 'chat_' + new Date().toDateString()
@@ -182,6 +201,7 @@ export default function Home() {
         await loadProfile(data.session.user.id)
         await fetchDbListings(data.session.user.id)
         fetchMensajesNoLeidos(data.session.user.id)
+        fetchCitas(data.session.user.id)
       } else setSessionLoading(false)
     })
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_e, session) => {
@@ -191,6 +211,7 @@ export default function Home() {
         await loadProfile(session.user.id)
         await fetchDbListings(session.user.id)
         fetchMensajesNoLeidos(session.user.id)
+        fetchCitas(session.user.id)
       } else {
         setUserId(null)
         setSessionLoading(false)
@@ -370,10 +391,49 @@ export default function Home() {
     if (userId) fetchConversacion(userId, otro.user_id)
   }
 
+  async function fetchCitas(uid: string) {
+    const { data } = await supabase.from('citas').select('*').eq('user_id', uid).order('fecha', { ascending:true })
+    setCitas(data ?? [])
+  }
+
+  async function saveCita() {
+    if (!formCita.titulo.trim() || !formCita.fecha || !userId) return
+    setCitaSaving(true)
+    try {
+      const { error } = await supabase.from('citas').insert({
+        user_id: userId,
+        tipo: formCita.tipo,
+        titulo: formCita.titulo.trim(),
+        fecha: formCita.fecha,
+        hora: formCita.hora || null,
+        lugar: formCita.lugar.trim() || null,
+        notas: formCita.notas.trim() || null,
+        completada: false,
+      })
+      if (error) throw error
+      setFormCita(EMPTY_CITA)
+      setPantalla('citas')
+      await fetchCitas(userId)
+    } catch { alert('Error al guardar la cita') }
+    setCitaSaving(false)
+  }
+
+  async function toggleCitaCompletada(id: string, val: boolean) {
+    await supabase.from('citas').update({ completada: val }).eq('id', id)
+    if (userId) await fetchCitas(userId)
+  }
+
+  async function deleteCita(id: string) {
+    if (!confirm('¿Eliminar esta cita?')) return
+    await supabase.from('citas').delete().eq('id', id)
+    if (userId) await fetchCitas(userId)
+  }
+
   useEffect(() => {
     if (!userId) return
     if (pantalla === 'mensajes') fetchConversaciones(userId)
     if (pantalla === 'conversacion' && convActiva) fetchConversacion(userId, convActiva.user_id)
+    if (pantalla === 'citas') fetchCitas(userId)
   }, [pantalla])
 
   async function loadProfile(userId: string) {
@@ -488,6 +548,7 @@ export default function Home() {
       && (!soloSinNomina||v.sin_nomina) && v.precio<=precioMax
   })
 
+  const citasProximas = citas.filter(c => !c.completada && new Date(c.fecha + 'T00:00:00') >= new Date(new Date().toDateString()))
   const wrap: React.CSSProperties = { maxWidth:480, margin:'0 auto', height:'100dvh', display:'flex', flexDirection:'column', background:'#f8f9ff' }
 
   if (sessionLoading) return (
@@ -547,6 +608,10 @@ export default function Home() {
           <img src="/logo.png" alt="UnidosPorTi" style={{ width:56, height:56, objectFit:'contain' }} />
         </div>
         <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+          <button onClick={() => setPantalla('citas')} style={{ background:'none', border:'none', cursor:'pointer', position:'relative' as const, padding:4 }}>
+            <span style={{ fontSize:20 }}>📅</span>
+            {citasProximas.length > 0 && <span style={{ position:'absolute' as const, top:0, right:0, background:'#0284c7', color:'#fff', borderRadius:'50%', width:16, height:16, fontSize:10, display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700 }}>{citasProximas.length}</span>}
+          </button>
           <button onClick={() => setPantalla('mensajes')} style={{ background:'none', border:'none', cursor:'pointer', position:'relative' as const, padding:4 }}>
             <span style={{ fontSize:20 }}>✉️</span>
             {mensajesNoLeidos > 0 && <span style={{ position:'absolute' as const, top:0, right:0, background:'#7c3aed', color:'#fff', borderRadius:'50%', width:16, height:16, fontSize:10, display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700 }}>{mensajesNoLeidos}</span>}
@@ -605,6 +670,19 @@ export default function Home() {
                 ))}
               </div>
             </div>
+            <button onClick={() => setPantalla('citas')} style={{ background:'#f0f9ff', border:'1px solid #bae6fd', borderRadius:16, padding:'14px 16px', cursor:'pointer', fontFamily:'inherit', display:'flex', alignItems:'center', gap:13, textAlign:'left' as const, width:'100%' }}>
+              <span style={{ fontSize:26 }}>📅</span>
+              <div style={{ flex:1 }}>
+                <p style={{ fontWeight:700, fontSize:14, color:'#0c4a6e', margin:'0 0 2px' }}>Mis Citas y Recordatorios</p>
+                <p style={{ fontSize:12, color:'#0369a1', margin:0 }}>
+                  {citasProximas.length > 0 ? `${citasProximas.length} cita${citasProximas.length!==1?'s':''} próxima${citasProximas.length!==1?'s':''}` : 'Sin citas próximas'}
+                </p>
+              </div>
+              {citasProximas.length > 0 && (
+                <span style={{ background:'#0284c7', color:'#fff', borderRadius:'50%', width:24, height:24, display:'flex', alignItems:'center', justifyContent:'center', fontSize:12, fontWeight:700, flexShrink:0 }}>{citasProximas.length}</span>
+              )}
+              <span style={{ color:'#9ca3af', fontSize:16 }}>→</span>
+            </button>
             <div style={{ background:'#fffbeb', border:'1px solid #fde68a', borderRadius:16, padding:16 }}>
               <p style={{ fontSize:13, fontWeight:700, color:'#92400e', margin:'0 0 10px' }}>⚖️ ¿Cuál es tu situación legal?</p>
               <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
@@ -1471,6 +1549,133 @@ export default function Home() {
               <p style={{ fontSize:12, color:'#92400e', margin:0, lineHeight:1.7 }}>
                 UnidosPorTi es gratuita para todos. El plan Premium cubre el coste del Chat IA y nos permite seguir mejorando la app para ayudar a más migrantes en España. 💛
               </p>
+            </div>
+          </div>
+        )}
+
+        {pantalla === 'citas' && (
+          <div style={{ padding:16, display:'flex', flexDirection:'column', gap:14 }}>
+            <div style={{ background:'linear-gradient(135deg,#0284c7,#0369a1)', borderRadius:20, padding:'20px 24px', color:'#fff' }}>
+              <h2 style={{ fontSize:20, fontWeight:800, margin:'0 0 4px' }}>📅 Mis Citas</h2>
+              <p style={{ fontSize:13, opacity:0.9, margin:0 }}>
+                {citasProximas.length > 0 ? `${citasProximas.length} cita${citasProximas.length!==1?'s':''} pendiente${citasProximas.length!==1?'s':''}` : 'Sin citas próximas'}
+              </p>
+            </div>
+            <button onClick={() => { setFormCita(EMPTY_CITA); setPantalla('nueva-cita') }} style={{ ...btn, background:'#0284c7', display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
+              + Nueva Cita
+            </button>
+            {citas.length === 0 && (
+              <div style={{ textAlign:'center', padding:'40px 20px' }}>
+                <p style={{ fontSize:40, margin:'0 0 8px' }}>📅</p>
+                <p style={{ fontWeight:700, fontSize:15, color:'#111', margin:'0 0 4px' }}>Sin citas todavía</p>
+                <p style={{ fontSize:13, color:'#6b7280', margin:0 }}>Añade tu primera cita o recordatorio</p>
+              </div>
+            )}
+            {citas.length > 0 && (
+              <>
+                {citas.filter(c => !c.completada).length > 0 && (
+                  <>
+                    <p style={{ fontSize:13, fontWeight:700, color:'#374151', margin:0 }}>🔔 Pendientes</p>
+                    {citas.filter(c => !c.completada).map(c => {
+                      const day = getDayLabel(c.fecha)
+                      const isVencida = new Date(c.fecha + 'T00:00:00') < new Date(new Date().toDateString())
+                      return (
+                        <div key={c.id} style={{ background:'#fff', border:`1px solid ${isVencida?'#fca5a5':'#e5e7eb'}`, borderRadius:16, padding:14 }}>
+                          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:6 }}>
+                            <div style={{ flex:1, minWidth:0 }}>
+                              <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:3 }}>
+                                <span style={{ fontSize:11, padding:'2px 8px', borderRadius:20, fontWeight:700, background:day.bg, color:day.color }}>{day.label}</span>
+                                <span style={{ fontSize:11, padding:'2px 8px', borderRadius:20, fontWeight:600, background:'#f3f4f6', color:'#374151' }}>{c.tipo}</span>
+                              </div>
+                              <p style={{ fontWeight:700, fontSize:14, color:'#111', margin:'0 0 2px' }}>{c.titulo}</p>
+                              <p style={{ fontSize:12, color:'#6b7280', margin:0 }}>
+                                {new Date(c.fecha+'T00:00:00').toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'})}
+                                {c.hora && ` · ${c.hora}`}
+                              </p>
+                              {c.lugar && <p style={{ fontSize:12, color:'#6b7280', margin:'2px 0 0' }}>📍 {c.lugar}</p>}
+                              {c.notas && <p style={{ fontSize:12, color:'#6b7280', margin:'4px 0 0', fontStyle:'italic' }}>{c.notas}</p>}
+                            </div>
+                          </div>
+                          <div style={{ display:'flex', gap:8, marginTop:10 }}>
+                            <button onClick={() => toggleCitaCompletada(c.id, true)} style={{ flex:1, background:'#dcfce7', color:'#166534', border:'none', borderRadius:10, padding:'8px 0', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>✅ Completada</button>
+                            <button onClick={() => deleteCita(c.id)} style={{ background:'#fee2e2', color:'#991b1b', border:'none', borderRadius:10, padding:'8px 12px', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>🗑</button>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </>
+                )}
+                {citas.filter(c => c.completada).length > 0 && (
+                  <>
+                    <p style={{ fontSize:13, fontWeight:700, color:'#9ca3af', margin:'4px 0 0' }}>✅ Completadas</p>
+                    {citas.filter(c => c.completada).map(c => (
+                      <div key={c.id} style={{ background:'#f9fafb', border:'1px solid #e5e7eb', borderRadius:16, padding:14, opacity:0.7 }}>
+                        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                          <div style={{ flex:1 }}>
+                            <p style={{ fontWeight:700, fontSize:13, color:'#6b7280', margin:'0 0 2px', textDecoration:'line-through' }}>{c.titulo}</p>
+                            <p style={{ fontSize:12, color:'#9ca3af', margin:0 }}>
+                              {new Date(c.fecha+'T00:00:00').toLocaleDateString('es-ES',{day:'numeric',month:'short',year:'numeric'})}
+                              {c.hora && ` · ${c.hora}`}
+                            </p>
+                          </div>
+                          <div style={{ display:'flex', gap:6 }}>
+                            <button onClick={() => toggleCitaCompletada(c.id, false)} style={{ background:'#dbeafe', color:'#1d4ed8', border:'none', borderRadius:8, padding:'6px 10px', fontSize:11, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>↩</button>
+                            <button onClick={() => deleteCita(c.id)} style={{ background:'#fee2e2', color:'#991b1b', border:'none', borderRadius:8, padding:'6px 10px', fontSize:11, cursor:'pointer', fontFamily:'inherit' }}>🗑</button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </>
+                )}
+              </>
+            )}
+          </div>
+        )}
+
+        {pantalla === 'nueva-cita' && (
+          <div style={{ padding:16, display:'flex', flexDirection:'column', gap:14 }}>
+            <div style={{ background:'linear-gradient(135deg,#0284c7,#0369a1)', borderRadius:20, padding:'20px 24px', color:'#fff' }}>
+              <button onClick={() => setPantalla('citas')} style={{ background:'rgba(255,255,255,0.2)', border:'none', borderRadius:10, padding:'4px 10px', color:'#fff', fontSize:12, cursor:'pointer', fontFamily:'inherit', marginBottom:10 }}>← Volver</button>
+              <h2 style={{ fontSize:20, fontWeight:800, margin:'0 0 4px' }}>📅 Nueva Cita</h2>
+              <p style={{ fontSize:13, opacity:0.9, margin:0 }}>Añade un recordatorio o cita importante</p>
+            </div>
+            <div style={{ background:'#fff', border:'1px solid #e5e7eb', borderRadius:16, padding:16, display:'flex', flexDirection:'column', gap:14 }}>
+              <div>
+                <p style={{ fontSize:13, fontWeight:600, color:'#374151', margin:'0 0 8px' }}>Tipo de cita</p>
+                <div style={{ display:'flex', flexWrap:'wrap' as const, gap:8 }}>
+                  {TIPOS_CITA.map(t => (
+                    <button key={t} onClick={() => setFormCita(f => ({ ...f, tipo:t }))} style={{ background:formCita.tipo===t?'#0284c7':'#f3f4f6', color:formCita.tipo===t?'#fff':'#374151', border:'none', borderRadius:20, padding:'7px 14px', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>{t}</button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <p style={{ fontSize:13, fontWeight:600, color:'#374151', margin:'0 0 5px' }}>Título *</p>
+                <input value={formCita.titulo} onChange={e => setFormCita(f => ({ ...f, titulo:e.target.value }))} placeholder="Ej: Cita en Extranjería para arraigo social" style={{ width:'100%', border:'1px solid #d1d5db', borderRadius:10, padding:'10px 12px', fontSize:14, fontFamily:'inherit', outline:'none', boxSizing:'border-box' as const }} />
+              </div>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+                <div>
+                  <p style={{ fontSize:13, fontWeight:600, color:'#374151', margin:'0 0 5px' }}>Fecha *</p>
+                  <input type="date" value={formCita.fecha} onChange={e => setFormCita(f => ({ ...f, fecha:e.target.value }))} style={{ width:'100%', border:'1px solid #d1d5db', borderRadius:10, padding:'10px 12px', fontSize:14, fontFamily:'inherit', outline:'none', boxSizing:'border-box' as const }} />
+                </div>
+                <div>
+                  <p style={{ fontSize:13, fontWeight:600, color:'#374151', margin:'0 0 5px' }}>Hora</p>
+                  <input type="time" value={formCita.hora} onChange={e => setFormCita(f => ({ ...f, hora:e.target.value }))} style={{ width:'100%', border:'1px solid #d1d5db', borderRadius:10, padding:'10px 12px', fontSize:14, fontFamily:'inherit', outline:'none', boxSizing:'border-box' as const }} />
+                </div>
+              </div>
+              <div>
+                <p style={{ fontSize:13, fontWeight:600, color:'#374151', margin:'0 0 5px' }}>Lugar</p>
+                <input value={formCita.lugar} onChange={e => setFormCita(f => ({ ...f, lugar:e.target.value }))} placeholder="Ej: Oficina de Extranjería, Calle Mayor 1" style={{ width:'100%', border:'1px solid #d1d5db', borderRadius:10, padding:'10px 12px', fontSize:14, fontFamily:'inherit', outline:'none', boxSizing:'border-box' as const }} />
+              </div>
+              <div>
+                <p style={{ fontSize:13, fontWeight:600, color:'#374151', margin:'0 0 5px' }}>Notas</p>
+                <textarea value={formCita.notas} onChange={e => setFormCita(f => ({ ...f, notas:e.target.value }))} placeholder="Documentos que necesitas llevar, instrucciones..." rows={3} style={{ width:'100%', border:'1px solid #d1d5db', borderRadius:10, padding:'10px 12px', fontSize:13, fontFamily:'inherit', outline:'none', resize:'vertical', boxSizing:'border-box' as const }} />
+              </div>
+              <button onClick={saveCita} disabled={citaSaving || !formCita.titulo.trim() || !formCita.fecha} style={{ ...btn, background:'#0284c7', opacity:(citaSaving||!formCita.titulo.trim()||!formCita.fecha)?0.5:1 }}>
+                {citaSaving ? 'Guardando...' : '💾 Guardar cita →'}
+              </button>
+            </div>
+            <div style={{ background:'#f0f9ff', border:'1px solid #bae6fd', borderRadius:14, padding:14 }}>
+              <p style={{ fontSize:12, color:'#0369a1', margin:0 }}>💡 <strong>Consejo:</strong> Añade las citas en Extranjería con anticipación y apunta los documentos que debes llevar en las notas.</p>
             </div>
           </div>
         )}
