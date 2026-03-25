@@ -231,7 +231,7 @@ export default function Home() {
       </div>
       <p style={{ color:'#9ca3af', fontSize:14 }}>Cargando...</p>
     </div>
-  )
+  );
 
   if (!userEmail) return (
     <div style={{ ...wrap, overflowY:'auto', background:'#f0f4ff' }}>
@@ -277,7 +277,7 @@ export default function Home() {
         <p style={{ fontSize:11, color:'#9ca3af', textAlign:'center', margin:'2px 0 0' }}>Sin tarjeta · Sin publicidad · Tus datos protegidos</p>
       </div>
     </div>
-  )
+  );
 
   return (
     <div style={wrap}>
