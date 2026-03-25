@@ -8,7 +8,7 @@ const supabase = createClient(
   { auth: { persistSession: true, detectSessionInUrl: true, autoRefreshToken: true } }
 )
 
-type Pantalla = 'inicio' | 'empleo' | 'vivienda' | 'chat' | 'tramites' | 'perfil' | 'calculadora' | 'contrato' | 'nomina' | 'notificaciones' | 'admin' | 'publicar-empleo' | 'publicar-vivienda' | 'mis-publicaciones' | 'comunidad' | 'mensajes' | 'conversacion' | 'premium' | 'citas' | 'nueva-cita' | 'alertas'
+type Pantalla = 'inicio' | 'empleo' | 'vivienda' | 'chat' | 'tramites' | 'perfil' | 'calculadora' | 'contrato' | 'nomina' | 'notificaciones' | 'admin' | 'publicar-empleo' | 'publicar-vivienda' | 'mis-publicaciones' | 'comunidad' | 'mensajes' | 'conversacion' | 'premium' | 'citas' | 'nueva-cita' | 'alertas' | 'ong-dashboard' | 'ong-registro' | 'ong-recursos' | 'ong-nuevo-recurso' | 'ong-alertas-b2b' | 'ong-stats'
 type Ruta = 'arraigo_social' | 'arraigo_laboral' | 'arraigo_familiar'
 type Msg = { role: string; content: string }
 
@@ -83,6 +83,16 @@ type RatingInfo = { avg:number; count:number }
 type Alerta = { id:string; user_id:string; tipo:string; sector?:string; ciudad?:string; precio_max?:number; created_at:string }
 type FormAlerta = { tipo:string; sector:string; ciudad:string; precio_max:string }
 const EMPTY_ALERTA: FormAlerta = { tipo:'empleo', sector:'', ciudad:'', precio_max:'' }
+
+type Organizacion = { id:string; user_id:string; nombre:string; tipo:string; descripcion:string; ciudad:string; web?:string; telefono?:string; email_contacto:string; plan:string; stripe_customer_id?:string; verificada:boolean; created_at:string }
+type RecursoOng = { id:string; org_id:string; org_nombre:string; org_verificada:boolean; tipo:string; titulo:string; descripcion:string; ciudad:string; direccion?:string; horario?:string; telefono?:string; email?:string; web?:string; gratuito:boolean; activo:boolean; created_at:string }
+type AnuncioNativo = { id:string; titulo:string; descripcion:string; cta:string; url:string; tipo_pantalla:string; activo:boolean }
+type FormOrg = { nombre:string; tipo:string; descripcion:string; ciudad:string; web:string; telefono:string; email_contacto:string }
+type FormRecurso = { tipo:string; titulo:string; descripcion:string; ciudad:string; direccion:string; horario:string; telefono:string; email:string; web:string; gratuito:boolean }
+const EMPTY_ORG: FormOrg = { nombre:'', tipo:'ong', descripcion:'', ciudad:'', web:'', telefono:'', email_contacto:'' }
+const EMPTY_RECURSO: FormRecurso = { tipo:'Asesoría jurídica', titulo:'', descripcion:'', ciudad:'', direccion:'', horario:'', telefono:'', email:'', web:'', gratuito:true }
+const TIPOS_RECURSO = ['Asesoría jurídica','Taller formativo','Alojamiento','Empleo','Apoyo psicológico','Banco de alimentos','Documentación','Otro']
+const TIPOS_ORG = [['ong','🏢 ONG / Entidad social'],['empresa','🏭 Empresa'],['administracion','🏛 Administración pública'],['gestor','👔 Gestoría / Despacho']]
 
 function getDayLabel(fecha: string): { label:string; color:string; bg:string } {
   const hoy = new Date(new Date().toDateString())
@@ -191,6 +201,16 @@ export default function Home() {
   const [alertas, setAlertas] = useState<Alerta[]>([])
   const [formAlerta, setFormAlerta] = useState<FormAlerta>(EMPTY_ALERTA)
   const [alertaSaving, setAlertaSaving] = useState(false)
+  const [miOrg, setMiOrg] = useState<Organizacion | null>(null)
+  const [orgLoading, setOrgLoading] = useState(false)
+  const [orgSaving, setOrgSaving] = useState(false)
+  const [recursosOng, setRecursosOng] = useState<RecursoOng[]>([])
+  const [recursosPublicos, setRecursosPublicos] = useState<RecursoOng[]>([])
+  const [anunciosNativos, setAnunciosNativos] = useState<AnuncioNativo[]>([])
+  const [formOrg, setFormOrg] = useState<FormOrg>(EMPTY_ORG)
+  const [formRecurso, setFormRecurso] = useState<FormRecurso>(EMPTY_RECURSO)
+  const [recursoSaving, setRecursoSaving] = useState(false)
+  const [b2bSuccess, setB2bSuccess] = useState(false)
 
   useEffect(() => {
     const key = 'chat_' + new Date().toDateString()
@@ -198,6 +218,14 @@ export default function Home() {
     const params = new URLSearchParams(window.location.search)
     if (params.get('premium') === 'success') {
       setPremiumSuccess(true)
+      window.history.replaceState({}, '', '/')
+    }
+    if (params.get('b2b') === 'success') {
+      setB2bSuccess(true)
+      window.history.replaceState({}, '', '/')
+    }
+    if (params.get('portal') === 'registro-ong') {
+      setPantalla('ong-registro')
       window.history.replaceState({}, '', '/')
     }
   }, [])
@@ -214,6 +242,9 @@ export default function Home() {
         fetchCitas(data.session.user.id)
         fetchValoraciones()
         fetchAlertas(data.session.user.id)
+        fetchMiOrg(data.session.user.id)
+        fetchRecursosPublicos()
+        fetchAnunciosNativos()
       } else setSessionLoading(false)
     })
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_e, session) => {
@@ -226,6 +257,9 @@ export default function Home() {
         fetchCitas(session.user.id)
         fetchValoraciones()
         fetchAlertas(session.user.id)
+        fetchMiOrg(session.user.id)
+        fetchRecursosPublicos()
+        fetchAnunciosNativos()
       } else {
         setUserId(null)
         setSessionLoading(false)
@@ -495,6 +529,76 @@ export default function Home() {
     if (userId) await fetchAlertas(userId)
   }
 
+  async function fetchMiOrg(uid: string) {
+    setOrgLoading(true)
+    const { data } = await supabase.from('organizaciones').select('*').eq('user_id', uid).maybeSingle()
+    if (data) {
+      setMiOrg(data)
+      setFormOrg({ nombre:data.nombre, tipo:data.tipo, descripcion:data.descripcion, ciudad:data.ciudad, web:data.web||'', telefono:data.telefono||'', email_contacto:data.email_contacto })
+      const { data: recursos } = await supabase.from('recursos_ong').select('*').eq('org_id', data.id).order('created_at', { ascending:false })
+      setRecursosOng(recursos ?? [])
+    }
+    setOrgLoading(false)
+  }
+
+  async function saveOrg() {
+    if (!formOrg.nombre.trim() || !formOrg.descripcion.trim() || !formOrg.ciudad.trim() || !formOrg.email_contacto.trim() || !userId) return
+    setOrgSaving(true)
+    try {
+      if (miOrg) {
+        await supabase.from('organizaciones').update({ nombre:formOrg.nombre, tipo:formOrg.tipo, descripcion:formOrg.descripcion, ciudad:formOrg.ciudad, web:formOrg.web||null, telefono:formOrg.telefono||null, email_contacto:formOrg.email_contacto }).eq('id', miOrg.id)
+      } else {
+        const { data } = await supabase.from('organizaciones').insert({ user_id:userId, nombre:formOrg.nombre, tipo:formOrg.tipo, descripcion:formOrg.descripcion, ciudad:formOrg.ciudad, web:formOrg.web||null, telefono:formOrg.telefono||null, email_contacto:formOrg.email_contacto, plan:'free', verificada:false }).select().single()
+        if (data) setMiOrg(data)
+      }
+      await fetchMiOrg(userId)
+      setPantalla('ong-dashboard')
+    } catch { alert('Error al guardar') }
+    setOrgSaving(false)
+  }
+
+  async function fetchRecursosPublicos() {
+    const { data } = await supabase.from('recursos_ong').select('*').eq('activo', true).order('created_at', { ascending:false }).limit(20)
+    setRecursosPublicos(data ?? [])
+  }
+
+  async function fetchAnunciosNativos() {
+    const { data } = await supabase.from('anuncios_nativos').select('*').eq('activo', true)
+    setAnunciosNativos(data ?? [])
+  }
+
+  async function saveRecurso() {
+    if (!formRecurso.titulo.trim() || !formRecurso.descripcion.trim() || !formRecurso.ciudad.trim() || !miOrg) return
+    setRecursoSaving(true)
+    try {
+      await supabase.from('recursos_ong').insert({ org_id:miOrg.id, org_nombre:miOrg.nombre, org_verificada:miOrg.verificada, tipo:formRecurso.tipo, titulo:formRecurso.titulo.trim(), descripcion:formRecurso.descripcion.trim(), ciudad:formRecurso.ciudad.trim(), direccion:formRecurso.direccion||null, horario:formRecurso.horario||null, telefono:formRecurso.telefono||null, email:formRecurso.email||null, web:formRecurso.web||null, gratuito:formRecurso.gratuito, activo:true })
+      setFormRecurso(EMPTY_RECURSO)
+      if (userId) await fetchMiOrg(userId)
+      await fetchRecursosPublicos()
+      setPantalla('ong-recursos')
+    } catch { alert('Error al guardar recurso') }
+    setRecursoSaving(false)
+  }
+
+  async function deleteRecurso(id: string) {
+    if (!confirm('¿Eliminar este recurso?')) return
+    await supabase.from('recursos_ong').delete().eq('id', id)
+    if (userId) await fetchMiOrg(userId)
+    await fetchRecursosPublicos()
+  }
+
+  async function iniciarPagoB2B(plan: string) {
+    setOrgSaving(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) return
+      const r = await fetch('/api/stripe/checkout-b2b', { method:'POST', headers:{ 'Content-Type':'application/json', authorization:`Bearer ${session.access_token}` }, body:JSON.stringify({ plan, email:userEmail, org_id:miOrg?.id }) })
+      const d = await r.json()
+      if (d.url) window.location.href = d.url
+    } catch { alert('Error al iniciar el pago') }
+    setOrgSaving(false)
+  }
+
   useEffect(() => {
     if (!userId) return
     if (pantalla === 'mensajes') fetchConversaciones(userId)
@@ -502,6 +606,8 @@ export default function Home() {
     if (pantalla === 'citas') fetchCitas(userId)
     if (pantalla === 'alertas') fetchAlertas(userId)
     if (pantalla === 'empleo' || pantalla === 'vivienda') fetchValoraciones()
+    if (pantalla === 'ong-dashboard' || pantalla === 'ong-recursos') fetchMiOrg(userId)
+    if (pantalla === 'tramites') fetchRecursosPublicos()
   }, [pantalla])
 
   async function loadProfile(userId: string) {
@@ -852,6 +958,18 @@ export default function Home() {
               </div>
               <span style={{ color:'#9ca3af' }}>→</span>
             </button>
+            <button onClick={() => setPantalla(miOrg ? 'ong-dashboard' : 'ong-registro')} style={{ background: miOrg ? '#f0fdf4' : 'linear-gradient(135deg,#f0f9ff,#e0f2fe)', border:`1px solid ${miOrg?'#bbf7d0':'#bae6fd'}`, borderRadius:14, padding:'14px 16px', cursor:'pointer', fontFamily:'inherit', display:'flex', alignItems:'center', gap:12, textAlign:'left' as const, width:'100%' }}>
+              <span style={{ fontSize:24 }}>🏢</span>
+              <div style={{ flex:1 }}>
+                <p style={{ fontWeight:700, fontSize:14, color: miOrg ? '#065f46' : '#0c4a6e', margin:0 }}>
+                  {miOrg ? `Portal: ${miOrg.nombre}` : 'Para ONGs y Empresas'}
+                </p>
+                <p style={{ fontSize:12, color:'#6b7280', margin:0 }}>
+                  {miOrg ? `Plan ${miOrg.plan} · ${recursosOng.length} recurso${recursosOng.length!==1?'s':''}` : 'Publica recursos y llega a miles de migrantes'}
+                </p>
+              </div>
+              <span style={{ color:'#9ca3af' }}>→</span>
+            </button>
             {editSituacion && (
               <div style={{ background:'#eff6ff', border:'1px solid #bfdbfe', borderRadius:16, padding:16 }}>
                 <p style={{ fontWeight:700, fontSize:14, color:'#1e3a8a', margin:'0 0 8px' }}>📋 Según tu situación:</p>
@@ -1127,6 +1245,16 @@ export default function Home() {
                   </button>
                 </div>
               ))}
+              {anunciosNativos.filter(a => a.tipo_pantalla === 'empleo').map(ad => (
+                <div key={ad.id} style={{ background:'linear-gradient(135deg,#eff6ff,#dbeafe)', border:'1px solid #93c5fd', borderRadius:16, padding:'14px 16px' }}>
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
+                    <span style={{ fontSize:10, background:'#1B4FCC', color:'#fff', padding:'2px 8px', borderRadius:10, fontWeight:700 }}>Patrocinado</span>
+                  </div>
+                  <p style={{ fontWeight:700, fontSize:14, color:'#1e3a8a', margin:'0 0 4px' }}>{ad.titulo}</p>
+                  <p style={{ fontSize:13, color:'#374151', margin:'0 0 10px', lineHeight:1.5 }}>{ad.descripcion}</p>
+                  <a href={ad.url} target="_blank" rel="noopener noreferrer" style={{ display:'block', background:'#1B4FCC', color:'#fff', borderRadius:10, padding:'9px 0', fontSize:13, fontWeight:700, textDecoration:'none', textAlign:'center' as const }}>{ad.cta} →</a>
+                </div>
+              ))}
               {dbEmpleosFiltrados.length > 0 && (
                 <>
                   <p style={{ fontSize:11, fontWeight:700, color:'#6b7280', textTransform:'uppercase' as const, letterSpacing:1, margin:'4px 0 0' }}>Publicadas por la comunidad</p>
@@ -1227,6 +1355,16 @@ export default function Home() {
                       Consultar disponibilidad →
                     </button>
                   </div>
+                </div>
+              ))}
+              {anunciosNativos.filter(a => a.tipo_pantalla === 'vivienda').map(ad => (
+                <div key={ad.id} style={{ background:'linear-gradient(135deg,#fffbeb,#fef3c7)', border:'1px solid #fcd34d', borderRadius:16, padding:'14px 16px' }}>
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
+                    <span style={{ fontSize:10, background:'#d97706', color:'#fff', padding:'2px 8px', borderRadius:10, fontWeight:700 }}>Patrocinado</span>
+                  </div>
+                  <p style={{ fontWeight:700, fontSize:14, color:'#78350f', margin:'0 0 4px' }}>{ad.titulo}</p>
+                  <p style={{ fontSize:13, color:'#374151', margin:'0 0 10px', lineHeight:1.5 }}>{ad.descripcion}</p>
+                  <a href={ad.url} target="_blank" rel="noopener noreferrer" style={{ display:'block', background:'#d97706', color:'#fff', borderRadius:10, padding:'9px 0', fontSize:13, fontWeight:700, textDecoration:'none', textAlign:'center' as const }}>{ad.cta} →</a>
                 </div>
               ))}
               {dbViviendosFiltradas.length > 0 && (
@@ -1338,6 +1476,41 @@ export default function Home() {
                     <span style={{ color:'#1B4FCC', fontSize:12, fontWeight:600 }}>⏱ {RUTAS[key].tiempo} →</span>
                   </button>
                 ))}
+              </div>
+            )}
+            {recursosPublicos.length > 0 && (
+              <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                  <p style={{ fontSize:13, fontWeight:700, color:'#374151', margin:0 }}>🏢 Recursos de ONGs y Entidades</p>
+                  <span style={{ fontSize:11, color:'#6b7280' }}>{recursosPublicos.length} disponibles</span>
+                </div>
+                {recursosPublicos.slice(0, 5).map(r => (
+                  <div key={r.id} style={{ background:'#fff', border:'1px solid #e5e7eb', borderRadius:14, padding:'12px 14px' }}>
+                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:4 }}>
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:3, flexWrap:'wrap' as const }}>
+                          <span style={{ fontSize:11, background:'#eff6ff', color:'#1e40af', padding:'2px 8px', borderRadius:10, fontWeight:700 }}>{r.tipo}</span>
+                          {r.gratuito && <span style={{ fontSize:11, background:'#f0fdf4', color:'#166534', padding:'2px 8px', borderRadius:10, fontWeight:700 }}>✓ Gratuito</span>}
+                          {r.org_verificada && <span style={{ fontSize:11, background:'#fef3c7', color:'#92400e', padding:'2px 8px', borderRadius:10, fontWeight:700 }}>✓ Verificado</span>}
+                        </div>
+                        <p style={{ fontWeight:700, fontSize:14, color:'#111', margin:'0 0 2px' }}>{r.titulo}</p>
+                        <p style={{ fontSize:12, color:'#6b7280', margin:'0 0 3px' }}>🏢 {r.org_nombre} · 📍 {r.ciudad}</p>
+                        <p style={{ fontSize:12, color:'#374151', margin:0, lineHeight:1.4 }}>{r.descripcion}</p>
+                        {r.horario && <p style={{ fontSize:11, color:'#6b7280', margin:'4px 0 0' }}>🕒 {r.horario}</p>}
+                      </div>
+                    </div>
+                    {(r.telefono || r.email || r.web) && (
+                      <div style={{ display:'flex', gap:6, marginTop:8, flexWrap:'wrap' as const }}>
+                        {r.telefono && <a href={`tel:${r.telefono}`} style={{ background:'#f0fdf4', color:'#065f46', borderRadius:8, padding:'6px 10px', fontSize:12, fontWeight:600, textDecoration:'none' }}>📞 Llamar</a>}
+                        {r.email && <a href={`mailto:${r.email}`} style={{ background:'#eff6ff', color:'#1e40af', borderRadius:8, padding:'6px 10px', fontSize:12, fontWeight:600, textDecoration:'none' }}>✉️ Email</a>}
+                        {r.web && <a href={r.web} target="_blank" rel="noopener noreferrer" style={{ background:'#f3f4f6', color:'#374151', borderRadius:8, padding:'6px 10px', fontSize:12, fontWeight:600, textDecoration:'none' }}>🌐 Web</a>}
+                      </div>
+                    )}
+                  </div>
+                ))}
+                {recursosPublicos.length > 5 && (
+                  <p style={{ fontSize:12, color:'#1B4FCC', textAlign:'center', margin:0, fontWeight:600 }}>+{recursosPublicos.length - 5} recursos más disponibles</p>
+                )}
               </div>
             )}
             {ruta && (
@@ -1669,6 +1842,211 @@ export default function Home() {
               <p style={{ fontSize:12, color:'#92400e', margin:0, lineHeight:1.7 }}>
                 UnidosPorTi es gratuita para todos. El plan Premium cubre el coste del Chat IA y nos permite seguir mejorando la app para ayudar a más migrantes en España. 💛
               </p>
+            </div>
+          </div>
+        )}
+
+        {pantalla === 'ong-registro' && (
+          <div style={{ padding:16, display:'flex', flexDirection:'column', gap:14 }}>
+            <div style={{ background:'linear-gradient(135deg,#1B4FCC,#1e3a8a)', borderRadius:20, padding:'20px 24px', color:'#fff' }}>
+              <button onClick={() => setPantalla('perfil')} style={{ background:'rgba(255,255,255,0.2)', border:'none', borderRadius:10, padding:'4px 10px', color:'#fff', fontSize:12, cursor:'pointer', fontFamily:'inherit', marginBottom:10 }}>← Volver</button>
+              <h2 style={{ fontSize:20, fontWeight:800, margin:'0 0 4px' }}>🏢 Registro de Organización</h2>
+              <p style={{ fontSize:13, opacity:0.9, margin:0 }}>Publica recursos y llega a miles de migrantes</p>
+            </div>
+            {b2bSuccess && (
+              <div style={{ background:'#f0fdf4', border:'1px solid #bbf7d0', borderRadius:14, padding:14 }}>
+                <p style={{ fontSize:14, fontWeight:700, color:'#065f46', margin:0 }}>🎉 ¡Bienvenido al portal B2B! Tu suscripción está activa.</p>
+              </div>
+            )}
+            <div style={{ background:'#fff', border:'1px solid #e5e7eb', borderRadius:16, padding:16, display:'flex', flexDirection:'column', gap:14 }}>
+              <p style={{ fontWeight:700, fontSize:14, color:'#111', margin:0 }}>Datos de tu organización</p>
+              <div>
+                <p style={{ fontSize:13, fontWeight:600, color:'#374151', margin:'0 0 8px' }}>Tipo de organización</p>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+                  {TIPOS_ORG.map(([val, lab]) => (
+                    <button key={val} onClick={() => setFormOrg(f => ({ ...f, tipo:val }))} style={{ background:formOrg.tipo===val?'#1B4FCC':'#f3f4f6', color:formOrg.tipo===val?'#fff':'#374151', border:'none', borderRadius:10, padding:'9px 6px', fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>{lab}</button>
+                  ))}
+                </div>
+              </div>
+              {[
+                { label:'Nombre de la organización *', key:'nombre', ph:'Ej: Cruz Roja España' },
+                { label:'Ciudad principal *', key:'ciudad', ph:'Ej: Madrid' },
+                { label:'Email de contacto *', key:'email_contacto', ph:'info@tuorganizacion.org' },
+                { label:'Teléfono', key:'telefono', ph:'+34 900 000 000' },
+                { label:'Sitio web', key:'web', ph:'https://tuorganizacion.org' },
+              ].map(({ label, key, ph }) => (
+                <div key={key}>
+                  <p style={{ fontSize:13, fontWeight:600, color:'#374151', margin:'0 0 5px' }}>{label}</p>
+                  <input value={(formOrg as any)[key]} onChange={e => setFormOrg(f => ({ ...f, [key]:e.target.value }))} placeholder={ph} style={{ width:'100%', border:'1px solid #d1d5db', borderRadius:10, padding:'10px 12px', fontSize:14, fontFamily:'inherit', outline:'none', boxSizing:'border-box' as const }} />
+                </div>
+              ))}
+              <div>
+                <p style={{ fontSize:13, fontWeight:600, color:'#374151', margin:'0 0 5px' }}>Descripción *</p>
+                <textarea value={formOrg.descripcion} onChange={e => setFormOrg(f => ({ ...f, descripcion:e.target.value }))} placeholder="¿A qué se dedica tu organización? ¿A quién ayuda?" rows={3} style={{ width:'100%', border:'1px solid #d1d5db', borderRadius:10, padding:'10px 12px', fontSize:13, fontFamily:'inherit', outline:'none', resize:'vertical', boxSizing:'border-box' as const }} />
+              </div>
+              <button onClick={saveOrg} disabled={orgSaving || !formOrg.nombre.trim() || !formOrg.descripcion.trim() || !formOrg.ciudad.trim() || !formOrg.email_contacto.trim()} style={{ ...btn, opacity:(orgSaving||!formOrg.nombre.trim()||!formOrg.descripcion.trim()||!formOrg.ciudad.trim()||!formOrg.email_contacto.trim())?0.5:1 }}>
+                {orgSaving ? 'Guardando...' : miOrg ? '💾 Guardar cambios' : '🚀 Registrar organización →'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {pantalla === 'ong-dashboard' && miOrg && (
+          <div style={{ padding:16, display:'flex', flexDirection:'column', gap:14 }}>
+            <div style={{ background:'linear-gradient(135deg,#1B4FCC,#1e3a8a)', borderRadius:20, padding:'20px 24px', color:'#fff' }}>
+              <button onClick={() => setPantalla('perfil')} style={{ background:'rgba(255,255,255,0.2)', border:'none', borderRadius:10, padding:'4px 10px', color:'#fff', fontSize:12, cursor:'pointer', fontFamily:'inherit', marginBottom:10 }}>← Volver</button>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
+                <div>
+                  <h2 style={{ fontSize:20, fontWeight:800, margin:'0 0 2px' }}>{miOrg.nombre}</h2>
+                  <p style={{ fontSize:13, opacity:0.9, margin:0 }}>{TIPOS_ORG.find(t => t[0]===miOrg.tipo)?.[1] || miOrg.tipo}</p>
+                </div>
+                <div style={{ textAlign:'right' }}>
+                  <span style={{ fontSize:11, background:'rgba(255,255,255,0.25)', padding:'4px 10px', borderRadius:10, fontWeight:700 }}>Plan {miOrg.plan}</span>
+                  {miOrg.verificada && <div style={{ fontSize:11, color:'#fde68a', marginTop:4 }}>✓ Verificada</div>}
+                </div>
+              </div>
+            </div>
+            {b2bSuccess && (
+              <div style={{ background:'#f0fdf4', border:'1px solid #bbf7d0', borderRadius:14, padding:14 }}>
+                <p style={{ fontSize:14, fontWeight:700, color:'#065f46', margin:0 }}>🎉 ¡Suscripción activada! Tu plan está ahora activo.</p>
+              </div>
+            )}
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+              {[
+                { icon:'📋', val:String(recursosOng.length), label:'Recursos activos', bg:'#eff6ff', border:'#bfdbfe', color:'#1e40af' },
+                { icon:'👁', val:miOrg.plan === 'premium' ? 'Ilimitadas' : '500+', label:'Visitas estimadas', bg:'#f0fdf4', border:'#bbf7d0', color:'#065f46' },
+              ].map(({ icon, val, label, bg, border, color }) => (
+                <div key={label} style={{ background:bg, border:`1px solid ${border}`, borderRadius:14, padding:'14px 12px', textAlign:'center' }}>
+                  <p style={{ fontSize:22, margin:'0 0 4px' }}>{icon}</p>
+                  <p style={{ fontWeight:800, fontSize:20, color, margin:'0 0 2px' }}>{val}</p>
+                  <p style={{ fontSize:11, color:'#6b7280', margin:0 }}>{label}</p>
+                </div>
+              ))}
+            </div>
+            <button onClick={() => setPantalla('ong-recursos')} style={{ background:'#eff6ff', border:'1px solid #bfdbfe', borderRadius:14, padding:'14px 16px', cursor:'pointer', fontFamily:'inherit', display:'flex', alignItems:'center', gap:12, textAlign:'left' as const }}>
+              <span style={{ fontSize:22 }}>📋</span>
+              <div style={{ flex:1 }}>
+                <p style={{ fontWeight:700, fontSize:14, color:'#1e3a8a', margin:0 }}>Gestionar recursos</p>
+                <p style={{ fontSize:12, color:'#6b7280', margin:0 }}>{recursosOng.length} recurso{recursosOng.length!==1?'s':''} publicado{recursosOng.length!==1?'s':''}</p>
+              </div>
+              <span style={{ color:'#9ca3af' }}>→</span>
+            </button>
+            <button onClick={() => setPantalla('ong-registro')} style={{ background:'#f9fafb', border:'1px solid #e5e7eb', borderRadius:14, padding:'14px 16px', cursor:'pointer', fontFamily:'inherit', display:'flex', alignItems:'center', gap:12, textAlign:'left' as const }}>
+              <span style={{ fontSize:22 }}>✏️</span>
+              <div style={{ flex:1 }}>
+                <p style={{ fontWeight:700, fontSize:14, color:'#374151', margin:0 }}>Editar perfil</p>
+                <p style={{ fontSize:12, color:'#6b7280', margin:0 }}>{miOrg.ciudad} · {miOrg.email_contacto}</p>
+              </div>
+              <span style={{ color:'#9ca3af' }}>→</span>
+            </button>
+            {miOrg.plan === 'free' && (
+              <div style={{ background:'linear-gradient(135deg,#fffbeb,#fef3c7)', border:'1px solid #fde68a', borderRadius:18, padding:18 }}>
+                <p style={{ fontWeight:800, fontSize:16, color:'#92400e', margin:'0 0 8px' }}>✨ Amplía tu alcance</p>
+                <p style={{ fontSize:13, color:'#78350f', margin:'0 0 14px', lineHeight:1.5 }}>Con el plan de pago puedes publicar más recursos, aparecer destacado y llegar a más personas.</p>
+                <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                  {[
+                    { plan:'basico', label:'Básico', precio:'49€/mes', desc:'Hasta 5 recursos, badge verificado' },
+                    { plan:'estandar', label:'Estándar', precio:'149€/mes', desc:'Recursos ilimitados + anuncio nativo' },
+                    { plan:'premium', label:'Premium', precio:'399€/mes', desc:'Todo + destacado en portada' },
+                  ].map(({ plan, label, precio, desc }) => (
+                    <button key={plan} onClick={() => iniciarPagoB2B(plan)} disabled={orgSaving} style={{ background:'#fff', border:'1px solid #fcd34d', borderRadius:12, padding:'12px 14px', cursor:'pointer', fontFamily:'inherit', textAlign:'left' as const, opacity:orgSaving?0.6:1 }}>
+                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                        <p style={{ fontWeight:700, fontSize:14, color:'#92400e', margin:0 }}>{label}</p>
+                        <p style={{ fontWeight:800, fontSize:14, color:'#d97706', margin:0 }}>{precio}</p>
+                      </div>
+                      <p style={{ fontSize:12, color:'#6b7280', margin:'3px 0 0' }}>{desc}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {miOrg.plan !== 'free' && (
+              <div style={{ background:'#f0fdf4', border:'1px solid #bbf7d0', borderRadius:14, padding:14 }}>
+                <p style={{ fontWeight:700, fontSize:14, color:'#065f46', margin:'0 0 4px' }}>✅ Plan {miOrg.plan} activo</p>
+                <p style={{ fontSize:12, color:'#6b7280', margin:0 }}>Contacta con soporte si necesitas cambiar tu plan.</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {pantalla === 'ong-recursos' && miOrg && (
+          <div style={{ padding:16, display:'flex', flexDirection:'column', gap:14 }}>
+            <div style={{ background:'linear-gradient(135deg,#059669,#065f46)', borderRadius:20, padding:'20px 24px', color:'#fff' }}>
+              <button onClick={() => setPantalla('ong-dashboard')} style={{ background:'rgba(255,255,255,0.2)', border:'none', borderRadius:10, padding:'4px 10px', color:'#fff', fontSize:12, cursor:'pointer', fontFamily:'inherit', marginBottom:10 }}>← Volver</button>
+              <h2 style={{ fontSize:20, fontWeight:800, margin:'0 0 4px' }}>📋 Recursos publicados</h2>
+              <p style={{ fontSize:13, opacity:0.9, margin:0 }}>{miOrg.nombre}</p>
+            </div>
+            <button onClick={() => { setFormRecurso(EMPTY_RECURSO); setPantalla('ong-nuevo-recurso') }} style={{ ...btn, background:'#059669', display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
+              + Nuevo recurso
+            </button>
+            {recursosOng.length === 0 && (
+              <div style={{ textAlign:'center', padding:'40px 20px' }}>
+                <p style={{ fontSize:40, margin:'0 0 8px' }}>📋</p>
+                <p style={{ fontWeight:700, fontSize:15, color:'#111', margin:'0 0 4px' }}>Sin recursos todavía</p>
+                <p style={{ fontSize:13, color:'#6b7280', margin:0 }}>Publica tu primer recurso para llegar a los migrantes</p>
+              </div>
+            )}
+            {recursosOng.map(r => (
+              <div key={r.id} style={{ background:'#fff', border:`1px solid ${r.activo?'#bbf7d0':'#e5e7eb'}`, borderRadius:16, padding:14 }}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:4 }}>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ display:'flex', gap:6, marginBottom:4, flexWrap:'wrap' as const }}>
+                      <span style={{ fontSize:11, background:'#eff6ff', color:'#1e40af', padding:'2px 8px', borderRadius:10, fontWeight:700 }}>{r.tipo}</span>
+                      {r.gratuito && <span style={{ fontSize:11, background:'#f0fdf4', color:'#166534', padding:'2px 8px', borderRadius:10, fontWeight:700 }}>Gratuito</span>}
+                      <span style={{ fontSize:11, background:r.activo?'#f0fdf4':'#f3f4f6', color:r.activo?'#166534':'#6b7280', padding:'2px 8px', borderRadius:10, fontWeight:700 }}>{r.activo?'✓ Activo':'Inactivo'}</span>
+                    </div>
+                    <p style={{ fontWeight:700, fontSize:14, color:'#111', margin:'0 0 2px' }}>{r.titulo}</p>
+                    <p style={{ fontSize:12, color:'#6b7280', margin:'0 0 3px' }}>📍 {r.ciudad}{r.direccion?` · ${r.direccion}`:''}</p>
+                    <p style={{ fontSize:12, color:'#374151', margin:0, lineHeight:1.4 }}>{r.descripcion}</p>
+                  </div>
+                </div>
+                <button onClick={() => deleteRecurso(r.id)} style={{ marginTop:10, background:'#fee2e2', color:'#991b1b', border:'none', borderRadius:8, padding:'6px 12px', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>🗑 Eliminar</button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {pantalla === 'ong-nuevo-recurso' && miOrg && (
+          <div style={{ padding:16, display:'flex', flexDirection:'column', gap:14 }}>
+            <div style={{ background:'linear-gradient(135deg,#059669,#065f46)', borderRadius:20, padding:'20px 24px', color:'#fff' }}>
+              <button onClick={() => setPantalla('ong-recursos')} style={{ background:'rgba(255,255,255,0.2)', border:'none', borderRadius:10, padding:'4px 10px', color:'#fff', fontSize:12, cursor:'pointer', fontFamily:'inherit', marginBottom:10 }}>← Volver</button>
+              <h2 style={{ fontSize:20, fontWeight:800, margin:'0 0 4px' }}>+ Nuevo Recurso</h2>
+              <p style={{ fontSize:13, opacity:0.9, margin:0 }}>Será visible para todos los usuarios de la app</p>
+            </div>
+            <div style={{ background:'#fff', border:'1px solid #e5e7eb', borderRadius:16, padding:16, display:'flex', flexDirection:'column', gap:14 }}>
+              <div>
+                <p style={{ fontSize:13, fontWeight:600, color:'#374151', margin:'0 0 8px' }}>Tipo de recurso</p>
+                <div style={{ display:'flex', flexWrap:'wrap' as const, gap:8 }}>
+                  {TIPOS_RECURSO.map(t => (
+                    <button key={t} onClick={() => setFormRecurso(f => ({ ...f, tipo:t }))} style={{ background:formRecurso.tipo===t?'#059669':'#f3f4f6', color:formRecurso.tipo===t?'#fff':'#374151', border:'none', borderRadius:20, padding:'7px 14px', fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>{t}</button>
+                  ))}
+                </div>
+              </div>
+              {[
+                { label:'Título del recurso *', key:'titulo', ph:'Ej: Asesoría jurídica gratuita para migrantes' },
+                { label:'Ciudad *', key:'ciudad', ph:'Ej: Madrid' },
+                { label:'Dirección', key:'direccion', ph:'Ej: Calle Mayor 10, bajo' },
+                { label:'Horario', key:'horario', ph:'Ej: Lunes a viernes, 9:00-14:00' },
+                { label:'Teléfono de contacto', key:'telefono', ph:'+34 900 000 000' },
+                { label:'Email de contacto', key:'email', ph:'info@ong.org' },
+                { label:'Web o más info', key:'web', ph:'https://...' },
+              ].map(({ label, key, ph }) => (
+                <div key={key}>
+                  <p style={{ fontSize:13, fontWeight:600, color:'#374151', margin:'0 0 5px' }}>{label}</p>
+                  <input value={(formRecurso as any)[key]} onChange={e => setFormRecurso(f => ({ ...f, [key]:e.target.value }))} placeholder={ph} style={{ width:'100%', border:'1px solid #d1d5db', borderRadius:10, padding:'10px 12px', fontSize:14, fontFamily:'inherit', outline:'none', boxSizing:'border-box' as const }} />
+                </div>
+              ))}
+              <div>
+                <p style={{ fontSize:13, fontWeight:600, color:'#374151', margin:'0 0 5px' }}>Descripción *</p>
+                <textarea value={formRecurso.descripcion} onChange={e => setFormRecurso(f => ({ ...f, descripcion:e.target.value }))} placeholder="Describe el servicio, quién puede acceder, requisitos..." rows={3} style={{ width:'100%', border:'1px solid #d1d5db', borderRadius:10, padding:'10px 12px', fontSize:13, fontFamily:'inherit', outline:'none', resize:'vertical', boxSizing:'border-box' as const }} />
+              </div>
+              <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                <input type="checkbox" id="gratuito" checked={formRecurso.gratuito} onChange={e => setFormRecurso(f => ({ ...f, gratuito:e.target.checked }))} style={{ width:18, height:18 }} />
+                <label htmlFor="gratuito" style={{ fontSize:14, color:'#374151', fontWeight:600, cursor:'pointer' }}>✓ Es un servicio gratuito</label>
+              </div>
+              <button onClick={saveRecurso} disabled={recursoSaving || !formRecurso.titulo.trim() || !formRecurso.descripcion.trim() || !formRecurso.ciudad.trim()} style={{ ...btn, background:'#059669', opacity:(recursoSaving||!formRecurso.titulo.trim()||!formRecurso.descripcion.trim()||!formRecurso.ciudad.trim())?0.5:1 }}>
+                {recursoSaving ? 'Publicando...' : '📋 Publicar recurso →'}
+              </button>
             </div>
           </div>
         )}
