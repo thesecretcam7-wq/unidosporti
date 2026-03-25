@@ -8,7 +8,7 @@ const supabase = createClient(
   { auth: { persistSession: true, detectSessionInUrl: true, autoRefreshToken: true } }
 )
 
-type Pantalla = 'inicio' | 'empleo' | 'vivienda' | 'chat' | 'tramites' | 'perfil' | 'calculadora' | 'contrato' | 'nomina' | 'notificaciones' | 'admin' | 'publicar-empleo' | 'publicar-vivienda' | 'mis-publicaciones' | 'comunidad' | 'mensajes' | 'conversacion'
+type Pantalla = 'inicio' | 'empleo' | 'vivienda' | 'chat' | 'tramites' | 'perfil' | 'calculadora' | 'contrato' | 'nomina' | 'notificaciones' | 'admin' | 'publicar-empleo' | 'publicar-vivienda' | 'mis-publicaciones' | 'comunidad' | 'mensajes' | 'conversacion' | 'premium'
 type Ruta = 'arraigo_social' | 'arraigo_laboral' | 'arraigo_familiar'
 type Msg = { role: string; content: string }
 
@@ -67,8 +67,8 @@ const ADMIN_EMAIL = 'thesecretcam7@gmail.com'
 type ChatMsg = { id:string; user_id:string; user_email:string; nombre:string|null; mensaje:string; created_at:string }
 type MensajePrivado = { id:string; from_user_id:string; from_nombre:string|null; from_email:string; to_user_id:string; to_nombre:string|null; to_email:string; mensaje:string; leido:boolean; created_at:string }
 type ConvInfo = { user_id:string; nombre:string; email:string; ultimo_mensaje:string; ultimo_tiempo:string; no_leidos:number }
-type DbEmpleo = { id:string; user_id:string; user_email:string; empresa:string; sector:string; ciudad:string; salario:string; jornada:string; arraigo:boolean; precontrato:boolean; nie:boolean; desc:string; contacto_tipo:string; contacto_whatsapp?:string; contacto_email?:string; status:string }
-type DbVivienda = { id:string; user_id:string; user_email:string; tipo:string; titulo:string; ciudad:string; barrio:string; precio:number; fianza:number; sin_nomina:boolean; extranjeros:boolean; m2?:number; desc:string; contacto_tipo:string; contacto_whatsapp?:string; contacto_email?:string; status:string }
+type DbEmpleo = { id:string; user_id:string; user_email:string; empresa:string; sector:string; ciudad:string; salario:string; jornada:string; arraigo:boolean; precontrato:boolean; nie:boolean; desc:string; contacto_tipo:string; contacto_whatsapp?:string; contacto_email?:string; status:string; destacado?:boolean }
+type DbVivienda = { id:string; user_id:string; user_email:string; tipo:string; titulo:string; ciudad:string; barrio:string; precio:number; fianza:number; sin_nomina:boolean; extranjeros:boolean; m2?:number; desc:string; contacto_tipo:string; contacto_whatsapp?:string; contacto_email?:string; status:string; destacado?:boolean }
 type FormEmpleo = { empresa:string; sector:string; ciudad:string; salario:string; jornada:string; arraigo:boolean; precontrato:boolean; nie:boolean; desc:string; contacto_tipo:string; contacto_whatsapp:string; contacto_email:string }
 type FormVivienda = { tipo:string; titulo:string; ciudad:string; barrio:string; precio:string; fianza:string; sin_nomina:boolean; extranjeros:boolean; m2:string; desc:string; contacto_tipo:string; contacto_whatsapp:string; contacto_email:string }
 const EMPTY_EMP: FormEmpleo = { empresa:'', sector:'Agricultura', ciudad:'', salario:'', jornada:'Completa', arraigo:false, precontrato:false, nie:false, desc:'', contacto_tipo:'ambos', contacto_whatsapp:'', contacto_email:'' }
@@ -157,6 +157,21 @@ export default function Home() {
   const [convMsg, setConvMsg] = useState('')
   const [convSending, setConvSending] = useState(false)
   const convBottomRef = useRef<HTMLDivElement>(null)
+  const [userPlan, setUserPlan] = useState<'free'|'premium'>('free')
+  const [chatUsadoHoy, setChatUsadoHoy] = useState(0)
+  const [premiumLoading, setPremiumLoading] = useState(false)
+  const [premiumSuccess, setPremiumSuccess] = useState(false)
+  const CHAT_LIMITE_FREE = 5
+
+  useEffect(() => {
+    const key = 'chat_' + new Date().toDateString()
+    setChatUsadoHoy(parseInt(localStorage.getItem(key) || '0'))
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('premium') === 'success') {
+      setPremiumSuccess(true)
+      window.history.replaceState({}, '', '/')
+    }
+  }, [])
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data }) => {
@@ -269,7 +284,7 @@ export default function Home() {
     setPendienteViviendas(d.viviendas ?? [])
   }
 
-  async function moderate(table: string, id: string, action: 'aprobar' | 'rechazar') {
+  async function moderate(table: string, id: string, action: 'aprobar' | 'rechazar' | 'destacar' | 'no-destacar') {
     setModerandoId(id)
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) return
@@ -364,7 +379,7 @@ export default function Home() {
   async function loadProfile(userId: string) {
     try {
       const { data } = await supabase.from('profiles').select('*').eq('id', userId).single()
-      if (data) { setEditNombre(data.nombre||''); setEditPais(data.pais||''); setEditCiudad(data.ciudad||''); setEditSituacion(data.situacion||'') }
+      if (data) { setEditNombre(data.nombre||''); setEditPais(data.pais||''); setEditCiudad(data.ciudad||''); setEditSituacion(data.situacion||''); setUserPlan(data.plan||'free') }
     } catch {}
     setSessionLoading(false)
   }
@@ -390,14 +405,30 @@ export default function Home() {
 
   async function send() {
     if (!msg.trim() || chatLoading) return
+    if (userPlan === 'free' && chatUsadoHoy >= CHAT_LIMITE_FREE) { setPantalla('premium'); return }
     const nc = [...chat, { role:'user', content:msg }]
     setChat(nc); setMsg(''); setChatLoading(true)
+    const newCount = chatUsadoHoy + 1
+    setChatUsadoHoy(newCount)
+    localStorage.setItem('chat_' + new Date().toDateString(), String(newCount))
     try {
       const r = await fetch('/api/chat', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ messages:nc }) })
       const d = await r.json()
       setChat([...nc, { role:'assistant', content:d.content }])
     } catch { setChat([...nc, { role:'assistant', content:'Error al conectar.' }]) }
     setChatLoading(false)
+  }
+
+  async function iniciarPago() {
+    setPremiumLoading(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) return
+      const r = await fetch('/api/stripe/checkout', { method:'POST', headers:{ 'Content-Type':'application/json', authorization:`Bearer ${session.access_token}` }, body:JSON.stringify({ email:userEmail }) })
+      const d = await r.json()
+      if (d.url) window.location.href = d.url
+    } catch { alert('Error al iniciar el pago') }
+    setPremiumLoading(false)
   }
 
   async function analizarContrato() {
@@ -443,14 +474,14 @@ export default function Home() {
       && (!soloSinNomina||v.sinNomina) && v.precio<=precioMax
   })
 
-  const dbEmpleosFiltrados = dbEmpleos.filter(e => {
+  const dbEmpleosFiltrados = [...dbEmpleos].sort((a,b) => (b.destacado?1:0)-(a.destacado?1:0)).filter(e => {
     const q = busqEmp.toLowerCase()
     return (!q || e.empresa.toLowerCase().includes(q) || e.sector.toLowerCase().includes(q) || e.ciudad.toLowerCase().includes(q))
       && (sectorFilt==='Todos'||e.sector===sectorFilt) && (ciudadEmpFilt==='Todas'||e.ciudad===ciudadEmpFilt)
       && (!soloArraigo||e.arraigo) && (!soloPrecontrato||e.precontrato)
   })
 
-  const dbViviendosFiltradas = dbViviendas.filter(v => {
+  const dbViviendosFiltradas = [...dbViviendas].sort((a,b) => (b.destacado?1:0)-(a.destacado?1:0)).filter(v => {
     const q = busqViv.toLowerCase()
     return (!q || v.titulo.toLowerCase().includes(q) || v.ciudad.toLowerCase().includes(q) || v.barrio.toLowerCase().includes(q))
       && (ciudadVivFilt==='Todas'||v.ciudad===ciudadVivFilt) && (tipoVivFilt==='Todos'||v.tipo===tipoVivFilt)
@@ -816,9 +847,10 @@ export default function Home() {
                     </div>
                   </div>
                   <p style={{ fontSize:12, color:'#374151', margin:'0 0 8px', lineHeight:1.4 }}>{e.desc}</p>
-                  <div style={{ display:'flex', gap:8 }}>
-                    <button onClick={() => moderate('empleos_usuarios', e.id, 'aprobar')} disabled={moderandoId===e.id} style={{ flex:1, background:'#065f46', color:'#fff', border:'none', borderRadius:10, padding:'8px 0', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit', opacity:moderandoId===e.id?0.6:1 }}>✅ Aprobar</button>
-                    <button onClick={() => moderate('empleos_usuarios', e.id, 'rechazar')} disabled={moderandoId===e.id} style={{ flex:1, background:'#dc2626', color:'#fff', border:'none', borderRadius:10, padding:'8px 0', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit', opacity:moderandoId===e.id?0.6:1 }}>❌ Rechazar</button>
+                  <div style={{ display:'flex', gap:6 }}>
+                    <button onClick={() => moderate('empleos_usuarios', e.id, 'aprobar')} disabled={moderandoId===e.id} style={{ flex:2, background:'#065f46', color:'#fff', border:'none', borderRadius:10, padding:'8px 0', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit', opacity:moderandoId===e.id?0.6:1 }}>✅ Aprobar</button>
+                    <button onClick={() => moderate('empleos_usuarios', e.id, 'rechazar')} disabled={moderandoId===e.id} style={{ flex:2, background:'#dc2626', color:'#fff', border:'none', borderRadius:10, padding:'8px 0', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit', opacity:moderandoId===e.id?0.6:1 }}>❌ Rechazar</button>
+                    <button onClick={() => moderate('empleos_usuarios', e.id, e.destacado?'no-destacar':'destacar')} disabled={moderandoId===e.id} style={{ flex:1, background:e.destacado?'#fef3c7':'#f3f4f6', color:e.destacado?'#92400e':'#374151', border:'none', borderRadius:10, padding:'8px 0', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>{e.destacado?'★':'☆'}</button>
                   </div>
                 </div>
               ))}
@@ -832,9 +864,10 @@ export default function Home() {
                     </div>
                   </div>
                   <p style={{ fontSize:12, color:'#374151', margin:'0 0 8px', lineHeight:1.4 }}>{v.desc}</p>
-                  <div style={{ display:'flex', gap:8 }}>
-                    <button onClick={() => moderate('viviendas_usuarios', v.id, 'aprobar')} disabled={moderandoId===v.id} style={{ flex:1, background:'#065f46', color:'#fff', border:'none', borderRadius:10, padding:'8px 0', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit', opacity:moderandoId===v.id?0.6:1 }}>✅ Aprobar</button>
-                    <button onClick={() => moderate('viviendas_usuarios', v.id, 'rechazar')} disabled={moderandoId===v.id} style={{ flex:1, background:'#dc2626', color:'#fff', border:'none', borderRadius:10, padding:'8px 0', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit', opacity:moderandoId===v.id?0.6:1 }}>❌ Rechazar</button>
+                  <div style={{ display:'flex', gap:6 }}>
+                    <button onClick={() => moderate('viviendas_usuarios', v.id, 'aprobar')} disabled={moderandoId===v.id} style={{ flex:2, background:'#065f46', color:'#fff', border:'none', borderRadius:10, padding:'8px 0', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit', opacity:moderandoId===v.id?0.6:1 }}>✅ Aprobar</button>
+                    <button onClick={() => moderate('viviendas_usuarios', v.id, 'rechazar')} disabled={moderandoId===v.id} style={{ flex:2, background:'#dc2626', color:'#fff', border:'none', borderRadius:10, padding:'8px 0', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit', opacity:moderandoId===v.id?0.6:1 }}>❌ Rechazar</button>
+                    <button onClick={() => moderate('viviendas_usuarios', v.id, v.destacado?'no-destacar':'destacar')} disabled={moderandoId===v.id} style={{ flex:1, background:v.destacado?'#fef3c7':'#f3f4f6', color:v.destacado?'#92400e':'#374151', border:'none', borderRadius:10, padding:'8px 0', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>{v.destacado?'★':'☆'}</button>
                   </div>
                 </div>
               ))}
@@ -913,7 +946,8 @@ export default function Home() {
                 <>
                   <p style={{ fontSize:11, fontWeight:700, color:'#6b7280', textTransform:'uppercase' as const, letterSpacing:1, margin:'4px 0 0' }}>Publicadas por la comunidad</p>
                   {dbEmpleosFiltrados.map(e => (
-                    <div key={e.id} style={{ background:'#fff', border:'2px solid #bbf7d0', borderRadius:18, padding:16 }}>
+                    <div key={e.id} style={{ background:'#fff', border:`2px solid ${e.destacado?'#f59e0b':'#bbf7d0'}`, borderRadius:18, padding:16 }}>
+                      {e.destacado && <div style={{ background:'#fef3c7', borderRadius:10, padding:'4px 10px', fontSize:11, fontWeight:700, color:'#92400e', display:'inline-block', marginBottom:8 }}>⭐ Destacado</div>}
                       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:8 }}>
                         <div>
                           <p style={{ fontWeight:800, fontSize:15, margin:'0 0 2px', color:'#111' }}>{e.empresa}</p>
@@ -1005,7 +1039,8 @@ export default function Home() {
                 <>
                   <p style={{ fontSize:11, fontWeight:700, color:'#6b7280', textTransform:'uppercase' as const, letterSpacing:1, margin:'4px 0 0' }}>Publicadas por la comunidad</p>
                   {dbViviendosFiltradas.map(v => (
-                    <div key={v.id} style={{ background:'#fff', border:'2px solid #fde68a', borderRadius:18 }}>
+                    <div key={v.id} style={{ background:'#fff', border:`2px solid ${v.destacado?'#f59e0b':'#fde68a'}`, borderRadius:18 }}>
+                      {v.destacado && <div style={{ background:'#fef3c7', borderRadius:'14px 14px 0 0', padding:'5px 14px', fontSize:11, fontWeight:700, color:'#92400e' }}>⭐ Destacado</div>}
                       <div style={{ background:'linear-gradient(135deg,#fef3c7,#fde68a)', padding:'16px', display:'flex', alignItems:'center', gap:12 }}>
                         <span style={{ fontSize:36 }}>🏠</span>
                         <div>
@@ -1064,12 +1099,25 @@ export default function Home() {
               ))}
               {chatLoading && <div style={{ display:'flex' }}><div style={{ background:'#fff', border:'1px solid #e5e7eb', borderRadius:18, padding:'10px 16px', fontSize:14, color:'#9ca3af' }}>Escribiendo...</div></div>}
             </div>
-            <div style={{ padding:'12px 16px', background:'#fff', borderTop:'1px solid #e5e7eb', flexShrink:0 }}>
-              <div style={{ display:'flex', gap:8 }}>
-                <input value={msg} onChange={e => setMsg(e.target.value)} onKeyDown={e => e.key==='Enter' && send()} placeholder="Escribe tu pregunta..." style={{ flex:1, border:'1px solid #d1d5db', borderRadius:24, padding:'10px 16px', fontSize:14, outline:'none', fontFamily:'inherit' }} />
-                <button onClick={send} disabled={chatLoading} style={{ width:44, height:44, background:'#1B4FCC', border:'none', borderRadius:'50%', color:'#fff', fontSize:18, cursor:'pointer', flexShrink:0, opacity:chatLoading?0.5:1 }}>➤</button>
+            {userPlan === 'free' && chatUsadoHoy >= CHAT_LIMITE_FREE ? (
+              <div style={{ padding:'12px 16px', background:'#fef3c7', borderTop:'1px solid #fde68a', flexShrink:0 }}>
+                <p style={{ fontSize:13, fontWeight:700, color:'#92400e', margin:'0 0 8px', textAlign:'center' }}>Has usado tus {CHAT_LIMITE_FREE} mensajes gratuitos de hoy</p>
+                <button onClick={() => setPantalla('premium')} style={{ ...btn, background:'linear-gradient(135deg,#f59e0b,#d97706)', fontSize:13 }}>✨ Hazte Premium — mensajes ilimitados →</button>
               </div>
-            </div>
+            ) : (
+              <div style={{ padding:'12px 16px', background:'#fff', borderTop:'1px solid #e5e7eb', flexShrink:0 }}>
+                {userPlan === 'free' && (
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
+                    <p style={{ fontSize:11, color:'#9ca3af', margin:0 }}>{chatUsadoHoy}/{CHAT_LIMITE_FREE} mensajes hoy (plan gratuito)</p>
+                    <button onClick={() => setPantalla('premium')} style={{ fontSize:11, color:'#f59e0b', background:'none', border:'none', cursor:'pointer', fontFamily:'inherit', fontWeight:700 }}>✨ Hazte Premium</button>
+                  </div>
+                )}
+                <div style={{ display:'flex', gap:8 }}>
+                  <input value={msg} onChange={e => setMsg(e.target.value)} onKeyDown={e => e.key==='Enter' && send()} placeholder="Escribe tu pregunta..." style={{ flex:1, border:'1px solid #d1d5db', borderRadius:24, padding:'10px 16px', fontSize:14, outline:'none', fontFamily:'inherit' }} />
+                  <button onClick={send} disabled={chatLoading} style={{ width:44, height:44, background:'#1B4FCC', border:'none', borderRadius:'50%', color:'#fff', fontSize:18, cursor:'pointer', flexShrink:0, opacity:chatLoading?0.5:1 }}>➤</button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -1371,6 +1419,58 @@ export default function Home() {
                 />
                 <button onClick={sendComunidad} disabled={comunidadSending || !comunidadMsg.trim()} style={{ width:44, height:44, background:'#7c3aed', border:'none', borderRadius:'50%', color:'#fff', fontSize:18, cursor:'pointer', flexShrink:0, opacity:(comunidadSending||!comunidadMsg.trim())?0.5:1 }}>➤</button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {pantalla === 'premium' && (
+          <div style={{ padding:16, display:'flex', flexDirection:'column', gap:16 }}>
+            {premiumSuccess && (
+              <div style={{ background:'#f0fdf4', border:'1px solid #bbf7d0', borderRadius:16, padding:16, textAlign:'center' }}>
+                <p style={{ fontSize:28, margin:'0 0 6px' }}>🎉</p>
+                <p style={{ fontWeight:800, fontSize:16, color:'#065f46', margin:'0 0 4px' }}>¡Ya eres Premium!</p>
+                <p style={{ fontSize:13, color:'#166534', margin:0 }}>Gracias por apoyar UnidosPorTi. Disfruta de todas las ventajas.</p>
+              </div>
+            )}
+            <div style={{ background:'linear-gradient(135deg,#f59e0b,#d97706)', borderRadius:20, padding:'24px', textAlign:'center', color:'#fff' }}>
+              <p style={{ fontSize:36, margin:'0 0 8px' }}>✨</p>
+              <h2 style={{ fontSize:22, fontWeight:900, margin:'0 0 6px' }}>UnidosPorTi Premium</h2>
+              <p style={{ fontSize:14, opacity:0.9, margin:0 }}>Todo lo que necesitas, sin límites</p>
+            </div>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+              {[
+                { icon:'🤖', title:'Chat IA ilimitado', sub:'Sin límite diario de mensajes', premium:true },
+                { icon:'⭐', title:'Badge Premium', sub:'Destaca en la comunidad', premium:true },
+                { icon:'🔔', title:'Alertas prioritarias', sub:'Primero en enterarte', premium:true },
+                { icon:'📋', title:'Publicaciones ilimitadas', sub:'Sin restricciones', premium:true },
+              ].map(({ icon, title, sub }) => (
+                <div key={title} style={{ background:'#fff', border:'1px solid #fde68a', borderRadius:16, padding:'14px 12px', textAlign:'center' }}>
+                  <p style={{ fontSize:26, margin:'0 0 6px' }}>{icon}</p>
+                  <p style={{ fontWeight:700, fontSize:13, color:'#111', margin:'0 0 2px' }}>{title}</p>
+                  <p style={{ fontSize:11, color:'#6b7280', margin:0 }}>{sub}</p>
+                </div>
+              ))}
+            </div>
+            <div style={{ background:'#fff', border:'2px solid #f59e0b', borderRadius:20, padding:20, textAlign:'center' }}>
+              <p style={{ fontSize:13, color:'#6b7280', margin:'0 0 4px' }}>Plan mensual</p>
+              <p style={{ fontSize:42, fontWeight:900, color:'#d97706', margin:'0 0 2px' }}>4,99€</p>
+              <p style={{ fontSize:13, color:'#9ca3af', margin:'0 0 16px' }}>por mes · cancela cuando quieras</p>
+              {userPlan === 'premium' ? (
+                <div style={{ background:'#f0fdf4', borderRadius:12, padding:'12px', marginBottom:12 }}>
+                  <p style={{ fontWeight:700, color:'#065f46', margin:0 }}>✅ Ya tienes Premium activo</p>
+                </div>
+              ) : (
+                <button onClick={iniciarPago} disabled={premiumLoading} style={{ ...btn, background:'linear-gradient(135deg,#f59e0b,#d97706)', fontSize:16, padding:'16px 0', opacity:premiumLoading?0.7:1 }}>
+                  {premiumLoading ? 'Redirigiendo...' : '✨ Hazte Premium →'}
+                </button>
+              )}
+              <p style={{ fontSize:11, color:'#9ca3af', margin:'10px 0 0' }}>Pago seguro con Stripe · Cancela en cualquier momento</p>
+            </div>
+            <div style={{ background:'#fffbeb', border:'1px solid #fde68a', borderRadius:14, padding:14 }}>
+              <p style={{ fontSize:13, fontWeight:700, color:'#92400e', margin:'0 0 8px' }}>¿Por qué pagar?</p>
+              <p style={{ fontSize:12, color:'#92400e', margin:0, lineHeight:1.7 }}>
+                UnidosPorTi es gratuita para todos. El plan Premium cubre el coste del Chat IA y nos permite seguir mejorando la app para ayudar a más migrantes en España. 💛
+              </p>
             </div>
           </div>
         )}

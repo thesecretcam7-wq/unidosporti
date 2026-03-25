@@ -17,11 +17,14 @@ export async function POST(req: NextRequest) {
   const { table, id, action } = await req.json()
   if (!['empleos_usuarios', 'viviendas_usuarios'].includes(table))
     return NextResponse.json({ error: 'Invalid table' }, { status: 400 })
-  if (!['aprobar', 'rechazar'].includes(action))
+  if (!['aprobar', 'rechazar', 'destacar', 'no-destacar'].includes(action))
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
 
-  const status = action === 'aprobar' ? 'aprobado' : 'rechazado'
-  const { error } = await adminClient.from(table).update({ status }).eq('id', id)
+  const update = action === 'aprobar' ? { status: 'aprobado' }
+    : action === 'rechazar' ? { status: 'rechazado' }
+    : action === 'destacar' ? { destacado: true }
+    : { destacado: false }
+  const { error } = await adminClient.from(table).update(update).eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   return NextResponse.json({ ok: true })
