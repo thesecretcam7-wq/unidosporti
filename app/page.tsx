@@ -8,7 +8,7 @@ const supabase = createClient(
   { auth: { persistSession: true, detectSessionInUrl: true, autoRefreshToken: true } }
 )
 
-type Pantalla = 'inicio' | 'empleo' | 'vivienda' | 'chat' | 'tramites' | 'perfil' | 'calculadora' | 'contrato' | 'nomina' | 'notificaciones' | 'admin' | 'publicar-empleo' | 'publicar-vivienda' | 'mis-publicaciones' | 'comunidad' | 'mensajes' | 'conversacion' | 'premium' | 'citas' | 'nueva-cita'
+type Pantalla = 'inicio' | 'empleo' | 'vivienda' | 'chat' | 'tramites' | 'perfil' | 'calculadora' | 'contrato' | 'nomina' | 'notificaciones' | 'admin' | 'publicar-empleo' | 'publicar-vivienda' | 'mis-publicaciones' | 'comunidad' | 'mensajes' | 'conversacion' | 'premium' | 'citas' | 'nueva-cita' | 'alertas'
 type Ruta = 'arraigo_social' | 'arraigo_laboral' | 'arraigo_familiar'
 type Msg = { role: string; content: string }
 
@@ -78,6 +78,11 @@ type Cita = { id:string; user_id:string; tipo:string; titulo:string; fecha:strin
 type FormCita = { tipo:string; titulo:string; fecha:string; hora:string; lugar:string; notas:string }
 const EMPTY_CITA: FormCita = { tipo:'Extranjería', titulo:'', fecha:'', hora:'', lugar:'', notas:'' }
 const TIPOS_CITA = ['Extranjería','Médico','Trabajo','Escuela','Banco','Abogado','Otro']
+
+type RatingInfo = { avg:number; count:number }
+type Alerta = { id:string; user_id:string; tipo:string; sector?:string; ciudad?:string; precio_max?:number; created_at:string }
+type FormAlerta = { tipo:string; sector:string; ciudad:string; precio_max:string }
+const EMPTY_ALERTA: FormAlerta = { tipo:'empleo', sector:'', ciudad:'', precio_max:'' }
 
 function getDayLabel(fecha: string): { label:string; color:string; bg:string } {
   const hoy = new Date(new Date().toDateString())
@@ -181,6 +186,11 @@ export default function Home() {
   const [citas, setCitas] = useState<Cita[]>([])
   const [citaSaving, setCitaSaving] = useState(false)
   const [formCita, setFormCita] = useState<FormCita>(EMPTY_CITA)
+  const [ratingsMap, setRatingsMap] = useState<Record<string, RatingInfo>>({})
+  const [misRatings, setMisRatings] = useState<Record<string, number>>({})
+  const [alertas, setAlertas] = useState<Alerta[]>([])
+  const [formAlerta, setFormAlerta] = useState<FormAlerta>(EMPTY_ALERTA)
+  const [alertaSaving, setAlertaSaving] = useState(false)
 
   useEffect(() => {
     const key = 'chat_' + new Date().toDateString()
@@ -202,6 +212,8 @@ export default function Home() {
         await fetchDbListings(data.session.user.id)
         fetchMensajesNoLeidos(data.session.user.id)
         fetchCitas(data.session.user.id)
+        fetchValoraciones()
+        fetchAlertas(data.session.user.id)
       } else setSessionLoading(false)
     })
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_e, session) => {
@@ -212,6 +224,8 @@ export default function Home() {
         await fetchDbListings(session.user.id)
         fetchMensajesNoLeidos(session.user.id)
         fetchCitas(session.user.id)
+        fetchValoraciones()
+        fetchAlertas(session.user.id)
       } else {
         setUserId(null)
         setSessionLoading(false)
@@ -429,11 +443,65 @@ export default function Home() {
     if (userId) await fetchCitas(userId)
   }
 
+  async function fetchValoraciones() {
+    const { data } = await supabase.from('valoraciones').select('item_id, estrellas, user_id')
+    if (!data) return
+    const sums: Record<string, { sum:number; count:number }> = {}
+    data.forEach(v => {
+      if (!sums[v.item_id]) sums[v.item_id] = { sum:0, count:0 }
+      sums[v.item_id].sum += v.estrellas
+      sums[v.item_id].count++
+    })
+    const result: Record<string, RatingInfo> = {}
+    Object.keys(sums).forEach(k => { result[k] = { avg: sums[k].sum / sums[k].count, count: sums[k].count } })
+    setRatingsMap(result)
+    if (userId) {
+      const mine: Record<string, number> = {}
+      data.filter(v => v.user_id === userId).forEach(v => { mine[v.item_id] = v.estrellas })
+      setMisRatings(mine)
+    }
+  }
+
+  async function rateItem(tabla: string, itemId: string, estrellas: number) {
+    if (!userId) return
+    await supabase.from('valoraciones').upsert({ user_id:userId, tabla, item_id:itemId, estrellas }, { onConflict:'user_id,item_id' })
+    setMisRatings(prev => ({ ...prev, [itemId]: estrellas }))
+    fetchValoraciones()
+  }
+
+  async function fetchAlertas(uid: string) {
+    const { data } = await supabase.from('alertas').select('*').eq('user_id', uid)
+    setAlertas(data ?? [])
+  }
+
+  async function saveAlerta() {
+    if (!userId) return
+    setAlertaSaving(true)
+    try {
+      await supabase.from('alertas').insert({
+        user_id: userId, tipo: formAlerta.tipo,
+        sector: formAlerta.sector || null,
+        ciudad: formAlerta.ciudad || null,
+        precio_max: formAlerta.precio_max ? Number(formAlerta.precio_max) : null,
+      })
+      setFormAlerta(EMPTY_ALERTA)
+      await fetchAlertas(userId)
+    } catch { alert('Error al guardar alerta') }
+    setAlertaSaving(false)
+  }
+
+  async function deleteAlerta(id: string) {
+    await supabase.from('alertas').delete().eq('id', id)
+    if (userId) await fetchAlertas(userId)
+  }
+
   useEffect(() => {
     if (!userId) return
     if (pantalla === 'mensajes') fetchConversaciones(userId)
     if (pantalla === 'conversacion' && convActiva) fetchConversacion(userId, convActiva.user_id)
     if (pantalla === 'citas') fetchCitas(userId)
+    if (pantalla === 'alertas') fetchAlertas(userId)
+    if (pantalla === 'empleo' || pantalla === 'vivienda') fetchValoraciones()
   }, [pantalla])
 
   async function loadProfile(userId: string) {
@@ -549,6 +617,32 @@ export default function Home() {
   })
 
   const citasProximas = citas.filter(c => !c.completada && new Date(c.fecha + 'T00:00:00') >= new Date(new Date().toDateString()))
+
+  function empMatchesAlerta(e: DbEmpleo) {
+    return alertas.some(a => a.tipo==='empleo' && (!a.sector || a.sector===e.sector) && (!a.ciudad || a.ciudad===e.ciudad))
+  }
+  function vivMatchesAlerta(v: DbVivienda) {
+    return alertas.some(a => a.tipo==='vivienda' && (!a.ciudad || a.ciudad===v.ciudad) && (!a.precio_max || v.precio<=a.precio_max))
+  }
+  const alertasMatchEmp = dbEmpleos.filter(empMatchesAlerta).length
+  const alertasMatchViv = dbViviendas.filter(vivMatchesAlerta).length
+
+  function Stars({ id, tabla, canRate }: { id:string; tabla:string; canRate:boolean }) {
+    const r = ratingsMap[id]
+    const mine = misRatings[id] || 0
+    return (
+      <div style={{ display:'flex', alignItems:'center', gap:6, marginTop:8 }}>
+        <div style={{ display:'flex', gap:2 }}>
+          {[1,2,3,4,5].map(n => (
+            <span key={n} onClick={() => canRate && rateItem(tabla, id, n)} style={{ fontSize:16, cursor:canRate?'pointer':'default', color: (canRate ? mine : (r?.avg||0)) >= n ? '#f59e0b' : '#d1d5db', transition:'color 0.1s' }}>★</span>
+          ))}
+        </div>
+        {r && <span style={{ fontSize:11, color:'#6b7280' }}>{r.avg.toFixed(1)} ({r.count})</span>}
+        {!r && canRate && <span style={{ fontSize:11, color:'#9ca3af' }}>Sin valoraciones aún</span>}
+      </div>
+    )
+  }
+
   const wrap: React.CSSProperties = { maxWidth:480, margin:'0 auto', height:'100dvh', display:'flex', flexDirection:'column', background:'#f8f9ff' }
 
   if (sessionLoading) return (
@@ -747,6 +841,14 @@ export default function Home() {
               <div style={{ flex:1 }}>
                 <p style={{ fontWeight:700, fontSize:14, color:'#065f46', margin:0 }}>Mis publicaciones</p>
                 <p style={{ fontSize:12, color:'#6b7280', margin:0 }}>{misEmpleos.length + misViviendas.length} publicación{misEmpleos.length + misViviendas.length !== 1 ? 'es' : ''}</p>
+              </div>
+              <span style={{ color:'#9ca3af' }}>→</span>
+            </button>
+            <button onClick={() => setPantalla('alertas')} style={{ background:'#f0f9ff', border:'1px solid #bae6fd', borderRadius:14, padding:'14px 16px', cursor:'pointer', fontFamily:'inherit', display:'flex', alignItems:'center', gap:12, textAlign:'left' as const, width:'100%' }}>
+              <span style={{ fontSize:24 }}>🔔</span>
+              <div style={{ flex:1 }}>
+                <p style={{ fontWeight:700, fontSize:14, color:'#0c4a6e', margin:0 }}>Mis alertas personalizadas</p>
+                <p style={{ fontSize:12, color:'#6b7280', margin:0 }}>{alertas.length} alerta{alertas.length !== 1 ? 's' : ''} activa{alertas.length !== 1 ? 's' : ''}</p>
               </div>
               <span style={{ color:'#9ca3af' }}>→</span>
             </button>
@@ -997,7 +1099,12 @@ export default function Home() {
             <div style={{ flex:1, overflowY:'auto', padding:'12px 14px', display:'flex', flexDirection:'column', gap:12 }}>
               <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
                 <p style={{ fontSize:12, color:'#6b7280', margin:0 }}>{empleosFiltrados.length + dbEmpleosFiltrados.length} ofertas encontradas</p>
-                <button onClick={() => setPantalla('publicar-empleo')} style={{ background:'#065f46', color:'#fff', border:'none', borderRadius:20, padding:'6px 14px', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>+ Publicar oferta</button>
+                <div style={{ display:'flex', gap:6 }}>
+                  <button onClick={() => setPantalla('alertas')} style={{ background: alertasMatchEmp>0?'#dbeafe':'#f0fdf4', color: alertasMatchEmp>0?'#1d4ed8':'#065f46', border:'none', borderRadius:20, padding:'6px 12px', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
+                    🔔{alertas.filter(a=>a.tipo==='empleo').length > 0 ? ` ${alertas.filter(a=>a.tipo==='empleo').length}` : ''}
+                  </button>
+                  <button onClick={() => setPantalla('publicar-empleo')} style={{ background:'#065f46', color:'#fff', border:'none', borderRadius:20, padding:'6px 14px', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>+ Publicar</button>
+                </div>
               </div>
               {empleosFiltrados.length === 0 && dbEmpleosFiltrados.length === 0 && <div style={{ textAlign:'center', padding:'40px 20px' }}><p style={{ fontSize:32 }}>🔍</p><p style={{ color:'#6b7280', fontSize:14 }}>No hay ofertas con esos filtros</p></div>}
               {empleosFiltrados.map(e => (
@@ -1024,8 +1131,11 @@ export default function Home() {
                 <>
                   <p style={{ fontSize:11, fontWeight:700, color:'#6b7280', textTransform:'uppercase' as const, letterSpacing:1, margin:'4px 0 0' }}>Publicadas por la comunidad</p>
                   {dbEmpleosFiltrados.map(e => (
-                    <div key={e.id} style={{ background:'#fff', border:`2px solid ${e.destacado?'#f59e0b':'#bbf7d0'}`, borderRadius:18, padding:16 }}>
-                      {e.destacado && <div style={{ background:'#fef3c7', borderRadius:10, padding:'4px 10px', fontSize:11, fontWeight:700, color:'#92400e', display:'inline-block', marginBottom:8 }}>⭐ Destacado</div>}
+                    <div key={e.id} style={{ background:'#fff', border:`2px solid ${empMatchesAlerta(e)?'#0284c7':e.destacado?'#f59e0b':'#bbf7d0'}`, borderRadius:18, padding:16 }}>
+                      <div style={{ display:'flex', gap:6, marginBottom:6 }}>
+                        {e.destacado && <div style={{ background:'#fef3c7', borderRadius:10, padding:'4px 10px', fontSize:11, fontWeight:700, color:'#92400e' }}>⭐ Destacado</div>}
+                        {empMatchesAlerta(e) && <div style={{ background:'#dbeafe', borderRadius:10, padding:'4px 10px', fontSize:11, fontWeight:700, color:'#1d4ed8' }}>🔔 Coincide con tu alerta</div>}
+                      </div>
                       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:8 }}>
                         <div>
                           <p style={{ fontWeight:800, fontSize:15, margin:'0 0 2px', color:'#111' }}>{e.empresa}</p>
@@ -1034,12 +1144,13 @@ export default function Home() {
                         <span style={{ fontWeight:800, color:'#065f46', fontSize:16, flexShrink:0 }}>{e.salario}<span style={{ fontSize:11, fontWeight:500 }}>/mes</span></span>
                       </div>
                       <p style={{ fontSize:13, color:'#374151', margin:'0 0 10px', lineHeight:1.5 }}>{e.desc}</p>
-                      <div style={{ display:'flex', gap:6, flexWrap:'wrap' as const, marginBottom:12 }}>
+                      <div style={{ display:'flex', gap:6, flexWrap:'wrap' as const, marginBottom:8 }}>
                         {e.arraigo && <Badge text="✓ Acepta arraigo" color="green" />}
                         {e.precontrato && <Badge text="✓ Firma precontrato" color="blue" />}
                         {e.nie && <Badge text="✓ NIE en trámite OK" color="orange" />}
                       </div>
-                      <div style={{ display:'flex', gap:8 }}>
+                      <Stars id={e.id} tabla="empleos_usuarios" canRate={e.user_id !== userId} />
+                      <div style={{ display:'flex', gap:8, marginTop:12 }}>
                         {(e.contacto_tipo === 'whatsapp' || e.contacto_tipo === 'ambos') && e.contacto_whatsapp && (
                           <a href={`https://wa.me/${e.contacto_whatsapp.replace(/\D/g,'')}`} target="_blank" rel="noopener noreferrer" style={{ flex:1, background:'#25d366', color:'#fff', border:'none', borderRadius:12, padding:'10px 0', fontSize:13, fontWeight:700, cursor:'pointer', textDecoration:'none', display:'flex', alignItems:'center', justifyContent:'center' }}>WhatsApp</a>
                         )}
@@ -1083,7 +1194,12 @@ export default function Home() {
             <div style={{ flex:1, overflowY:'auto', padding:'12px 14px', display:'flex', flexDirection:'column', gap:12 }}>
               <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
                 <p style={{ fontSize:12, color:'#6b7280', margin:0 }}>{viviendasFiltradas.length + dbViviendosFiltradas.length} viviendas encontradas</p>
-                <button onClick={() => setPantalla('publicar-vivienda')} style={{ background:'#d97706', color:'#fff', border:'none', borderRadius:20, padding:'6px 14px', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>+ Publicar vivienda</button>
+                <div style={{ display:'flex', gap:6 }}>
+                  <button onClick={() => setPantalla('alertas')} style={{ background: alertasMatchViv>0?'#dbeafe':'#fffbeb', color: alertasMatchViv>0?'#1d4ed8':'#92400e', border:'none', borderRadius:20, padding:'6px 12px', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
+                    🔔{alertas.filter(a=>a.tipo==='vivienda').length > 0 ? ` ${alertas.filter(a=>a.tipo==='vivienda').length}` : ''}
+                  </button>
+                  <button onClick={() => setPantalla('publicar-vivienda')} style={{ background:'#d97706', color:'#fff', border:'none', borderRadius:20, padding:'6px 14px', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>+ Publicar</button>
+                </div>
               </div>
               {viviendasFiltradas.length === 0 && dbViviendosFiltradas.length === 0 && <div style={{ textAlign:'center', padding:'40px 20px' }}><p style={{ fontSize:32 }}>🔍</p><p style={{ color:'#6b7280', fontSize:14 }}>No hay viviendas con esos filtros</p></div>}
               {viviendasFiltradas.map(v => (
@@ -1117,8 +1233,11 @@ export default function Home() {
                 <>
                   <p style={{ fontSize:11, fontWeight:700, color:'#6b7280', textTransform:'uppercase' as const, letterSpacing:1, margin:'4px 0 0' }}>Publicadas por la comunidad</p>
                   {dbViviendosFiltradas.map(v => (
-                    <div key={v.id} style={{ background:'#fff', border:`2px solid ${v.destacado?'#f59e0b':'#fde68a'}`, borderRadius:18 }}>
-                      {v.destacado && <div style={{ background:'#fef3c7', borderRadius:'14px 14px 0 0', padding:'5px 14px', fontSize:11, fontWeight:700, color:'#92400e' }}>⭐ Destacado</div>}
+                    <div key={v.id} style={{ background:'#fff', border:`2px solid ${vivMatchesAlerta(v)?'#0284c7':v.destacado?'#f59e0b':'#fde68a'}`, borderRadius:18 }}>
+                      <div style={{ display:'flex', gap:6, padding:'6px 14px 0', flexWrap:'wrap' as const }}>
+                        {v.destacado && <div style={{ background:'#fef3c7', borderRadius:10, padding:'3px 10px', fontSize:11, fontWeight:700, color:'#92400e' }}>⭐ Destacado</div>}
+                        {vivMatchesAlerta(v) && <div style={{ background:'#dbeafe', borderRadius:10, padding:'3px 10px', fontSize:11, fontWeight:700, color:'#1d4ed8' }}>🔔 Coincide con tu alerta</div>}
+                      </div>
                       <div style={{ background:'linear-gradient(135deg,#fef3c7,#fde68a)', padding:'16px', display:'flex', alignItems:'center', gap:12 }}>
                         <span style={{ fontSize:36 }}>🏠</span>
                         <div>
@@ -1132,13 +1251,14 @@ export default function Home() {
                           <span style={{ fontWeight:800, color:'#92400e', fontSize:18 }}>{v.precio}€<span style={{ fontSize:11, fontWeight:500, color:'#6b7280' }}>/mes</span></span>
                         </div>
                         <p style={{ fontSize:13, color:'#374151', margin:'0 0 10px', lineHeight:1.5 }}>{v.desc}</p>
-                        <div style={{ display:'flex', gap:6, flexWrap:'wrap' as const, marginBottom:12 }}>
+                        <div style={{ display:'flex', gap:6, flexWrap:'wrap' as const, marginBottom:4 }}>
                           {v.sin_nomina && <Badge text="✓ Sin nómina" color="green" />}
                           {v.extranjeros && <Badge text="✓ Acepta extranjeros" color="blue" />}
                           <Badge text={`Fianza: ${v.fianza} mes`} color="gray" />
                           {v.m2 && <Badge text={`${v.m2}m²`} color="gray" />}
                         </div>
-                        <div style={{ display:'flex', gap:8 }}>
+                        <Stars id={v.id} tabla="viviendas_usuarios" canRate={v.user_id !== userId} />
+                        <div style={{ display:'flex', gap:8, marginTop:12 }}>
                           {(v.contacto_tipo === 'whatsapp' || v.contacto_tipo === 'ambos') && v.contacto_whatsapp && (
                             <a href={`https://wa.me/${v.contacto_whatsapp.replace(/\D/g,'')}`} target="_blank" rel="noopener noreferrer" style={{ flex:1, background:'#25d366', color:'#fff', border:'none', borderRadius:12, padding:'10px 0', fontSize:13, fontWeight:700, cursor:'pointer', textDecoration:'none', display:'flex', alignItems:'center', justifyContent:'center' }}>WhatsApp</a>
                           )}
@@ -1550,6 +1670,84 @@ export default function Home() {
                 UnidosPorTi es gratuita para todos. El plan Premium cubre el coste del Chat IA y nos permite seguir mejorando la app para ayudar a más migrantes en España. 💛
               </p>
             </div>
+          </div>
+        )}
+
+        {pantalla === 'alertas' && (
+          <div style={{ padding:16, display:'flex', flexDirection:'column', gap:14 }}>
+            <div style={{ background:'linear-gradient(135deg,#0284c7,#0369a1)', borderRadius:20, padding:'20px 24px', color:'#fff' }}>
+              <button onClick={() => setPantalla('perfil')} style={{ background:'rgba(255,255,255,0.2)', border:'none', borderRadius:10, padding:'4px 10px', color:'#fff', fontSize:12, cursor:'pointer', fontFamily:'inherit', marginBottom:10 }}>← Volver</button>
+              <h2 style={{ fontSize:20, fontWeight:800, margin:'0 0 4px' }}>🔔 Alertas personalizadas</h2>
+              <p style={{ fontSize:13, opacity:0.9, margin:0 }}>Te avisamos cuando haya ofertas que coincidan con lo que buscas</p>
+            </div>
+            <div style={{ background:'#fff', border:'1px solid #e5e7eb', borderRadius:16, padding:16, display:'flex', flexDirection:'column', gap:12 }}>
+              <p style={{ fontWeight:700, fontSize:14, color:'#111', margin:0 }}>+ Nueva alerta</p>
+              <div>
+                <p style={{ fontSize:13, fontWeight:600, color:'#374151', margin:'0 0 8px' }}>Tipo</p>
+                <div style={{ display:'flex', gap:8 }}>
+                  {[['empleo','💼 Empleo'],['vivienda','🏠 Vivienda']].map(([val,lab]) => (
+                    <button key={val} onClick={() => setFormAlerta(f => ({ ...f, tipo:val }))} style={{ flex:1, background:formAlerta.tipo===val?'#0284c7':'#f3f4f6', color:formAlerta.tipo===val?'#fff':'#374151', border:'none', borderRadius:10, padding:'9px 0', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>{lab}</button>
+                  ))}
+                </div>
+              </div>
+              {formAlerta.tipo === 'empleo' && (
+                <div>
+                  <p style={{ fontSize:13, fontWeight:600, color:'#374151', margin:'0 0 5px' }}>Sector (opcional)</p>
+                  <select value={formAlerta.sector} onChange={e => setFormAlerta(f => ({ ...f, sector:e.target.value }))} style={{ width:'100%', border:'1px solid #d1d5db', borderRadius:10, padding:'10px 12px', fontSize:14, fontFamily:'inherit', outline:'none', background:'#fff', boxSizing:'border-box' as const }}>
+                    <option value="">Cualquier sector</option>
+                    {SECTORES.filter(s => s !== 'Todos').map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </div>
+              )}
+              {formAlerta.tipo === 'vivienda' && (
+                <div>
+                  <p style={{ fontSize:13, fontWeight:600, color:'#374151', margin:'0 0 5px' }}>Precio máximo (€/mes, opcional)</p>
+                  <input type="number" value={formAlerta.precio_max} onChange={e => setFormAlerta(f => ({ ...f, precio_max:e.target.value }))} placeholder="Ej: 500" style={{ width:'100%', border:'1px solid #d1d5db', borderRadius:10, padding:'10px 12px', fontSize:14, fontFamily:'inherit', outline:'none', boxSizing:'border-box' as const }} />
+                </div>
+              )}
+              <div>
+                <p style={{ fontSize:13, fontWeight:600, color:'#374151', margin:'0 0 5px' }}>Ciudad (opcional)</p>
+                <select value={formAlerta.ciudad} onChange={e => setFormAlerta(f => ({ ...f, ciudad:e.target.value }))} style={{ width:'100%', border:'1px solid #d1d5db', borderRadius:10, padding:'10px 12px', fontSize:14, fontFamily:'inherit', outline:'none', background:'#fff', boxSizing:'border-box' as const }}>
+                  <option value="">Cualquier ciudad</option>
+                  {Array.from(new Set([...CIUDADES_EMP, ...CIUDADES_VIV])).filter(c => c !== 'Todas').map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+              <button onClick={saveAlerta} disabled={alertaSaving} style={{ ...btn, background:'#0284c7', opacity:alertaSaving?0.7:1 }}>
+                {alertaSaving ? 'Guardando...' : '+ Añadir alerta'}
+              </button>
+            </div>
+            {alertas.length === 0 && (
+              <div style={{ textAlign:'center', padding:'32px 20px' }}>
+                <p style={{ fontSize:36, margin:'0 0 8px' }}>🔔</p>
+                <p style={{ fontWeight:700, fontSize:14, color:'#111', margin:'0 0 4px' }}>Sin alertas todavía</p>
+                <p style={{ fontSize:13, color:'#6b7280', margin:0 }}>Crea una alerta y te destacaremos los anuncios que coincidan</p>
+              </div>
+            )}
+            {alertas.length > 0 && (
+              <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+                <p style={{ fontSize:13, fontWeight:700, color:'#374151', margin:0 }}>Tus alertas activas</p>
+                {alertas.map(a => (
+                  <div key={a.id} style={{ background:'#fff', border:'1px solid #bae6fd', borderRadius:14, padding:'12px 14px', display:'flex', alignItems:'center', gap:12 }}>
+                    <span style={{ fontSize:22 }}>{a.tipo === 'empleo' ? '💼' : '🏠'}</span>
+                    <div style={{ flex:1 }}>
+                      <p style={{ fontWeight:700, fontSize:13, color:'#111', margin:'0 0 2px' }}>
+                        {a.tipo === 'empleo' ? 'Empleo' : 'Vivienda'}
+                        {a.sector && ` · ${a.sector}`}
+                        {a.ciudad && ` · ${a.ciudad}`}
+                        {a.precio_max && ` · hasta ${a.precio_max}€`}
+                      </p>
+                      <p style={{ fontSize:11, color:'#0369a1', margin:0 }}>
+                        {a.tipo === 'empleo'
+                          ? `${dbEmpleos.filter(e => (!a.sector||a.sector===e.sector)&&(!a.ciudad||a.ciudad===e.ciudad)).length} oferta${dbEmpleos.filter(e => (!a.sector||a.sector===e.sector)&&(!a.ciudad||a.ciudad===e.ciudad)).length !== 1?'s':''} coincide${dbEmpleos.filter(e => (!a.sector||a.sector===e.sector)&&(!a.ciudad||a.ciudad===e.ciudad)).length !== 1?'n':''}`
+                          : `${dbViviendas.filter(v => (!a.ciudad||a.ciudad===v.ciudad)&&(!a.precio_max||v.precio<=a.precio_max)).length} vivienda${dbViviendas.filter(v => (!a.ciudad||a.ciudad===v.ciudad)&&(!a.precio_max||v.precio<=a.precio_max)).length !== 1?'s':''} coincide${dbViviendas.filter(v => (!a.ciudad||a.ciudad===v.ciudad)&&(!a.precio_max||v.precio<=a.precio_max)).length !== 1?'n':''}`
+                        }
+                      </p>
+                    </div>
+                    <button onClick={() => deleteAlerta(a.id)} style={{ background:'#fee2e2', color:'#991b1b', border:'none', borderRadius:8, padding:'6px 10px', fontSize:12, cursor:'pointer', fontFamily:'inherit', fontWeight:700 }}>🗑</button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
