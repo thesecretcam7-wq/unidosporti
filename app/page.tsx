@@ -8,7 +8,7 @@ const supabase = createClient(
   { auth: { persistSession: true, detectSessionInUrl: true, autoRefreshToken: true } }
 )
 
-type Pantalla = 'inicio' | 'empleo' | 'vivienda' | 'chat' | 'tramites' | 'perfil' | 'calculadora' | 'contrato' | 'nomina' | 'notificaciones' | 'admin' | 'publicar-empleo' | 'publicar-vivienda' | 'mis-publicaciones' | 'comunidad' | 'mensajes' | 'conversacion' | 'premium' | 'citas' | 'nueva-cita' | 'alertas' | 'ong-dashboard' | 'ong-registro' | 'ong-recursos' | 'ong-nuevo-recurso' | 'ong-alertas-b2b' | 'ong-stats'
+type Pantalla = 'inicio' | 'empleo' | 'vivienda' | 'chat' | 'tramites' | 'perfil' | 'calculadora' | 'contrato' | 'nomina' | 'notificaciones' | 'admin' | 'publicar-empleo' | 'publicar-vivienda' | 'mis-publicaciones' | 'comunidad' | 'mensajes' | 'conversacion' | 'premium' | 'citas' | 'nueva-cita' | 'alertas' | 'ong-dashboard' | 'ong-registro' | 'ong-recursos' | 'ong-nuevo-recurso' | 'ong-alertas-b2b' | 'ong-stats' | 'ong-anuncios' | 'ong-nuevo-anuncio'
 type Ruta = 'arraigo_social' | 'arraigo_laboral' | 'arraigo_familiar'
 type Msg = { role: string; content: string }
 
@@ -93,6 +93,20 @@ const EMPTY_ORG: FormOrg = { nombre:'', tipo:'ong', descripcion:'', ciudad:'', w
 const EMPTY_RECURSO: FormRecurso = { tipo:'Asesoría jurídica', titulo:'', descripcion:'', ciudad:'', direccion:'', horario:'', telefono:'', email:'', web:'', gratuito:true }
 const TIPOS_RECURSO = ['Asesoría jurídica','Taller formativo','Alojamiento','Empleo','Apoyo psicológico','Banco de alimentos','Documentación','Otro']
 const TIPOS_ORG = [['ong','🏢 ONG / Entidad social'],['empresa','🏭 Empresa'],['administracion','🏛 Administración pública'],['gestor','👔 Gestoría / Despacho']]
+
+type CampanaAd = { id:string; org_id:string; org_nombre:string; titulo:string; descripcion:string; cta:string; url:string; tipo_pantalla:string; activo:boolean; status:string; duracion:string; precio_pagado:number; fecha_inicio?:string; fecha_fin?:string; stripe_session_id?:string; created_at:string }
+type FormAnuncio = { titulo:string; descripcion:string; cta:string; url:string; tipo_pantalla:string; duracion:string }
+const EMPTY_ANUNCIO: FormAnuncio = { titulo:'', descripcion:'', cta:'Ver más', url:'', tipo_pantalla:'empleo', duracion:'semana' }
+const PAQUETES_PUB = [
+  { id:'semana', label:'1 semana', precio:99, desc:'7 días visible · ideal para probar', badge:'', color:'#eff6ff', border:'#bfdbfe' },
+  { id:'mes', label:'1 mes', precio:299, desc:'30 días · máximo alcance · más popular', badge:'⭐ Popular', color:'#f0fdf4', border:'#059669' },
+  { id:'mes_todas', label:'1 mes · todas las pantallas', precio:499, desc:'Empleo + Vivienda + Trámites a la vez', badge:'🔥 Pro', color:'#fffbeb', border:'#fde68a' },
+]
+const PANTALLAS_AD = [
+  { id:'empleo', label:'💼 Empleo', desc:'Audiencia: buscadores de trabajo' },
+  { id:'vivienda', label:'🏠 Vivienda', desc:'Audiencia: personas buscando piso' },
+  { id:'tramites', label:'📋 Trámites', desc:'Audiencia: en proceso de regularización' },
+]
 
 function getDayLabel(fecha: string): { label:string; color:string; bg:string } {
   const hoy = new Date(new Date().toDateString())
@@ -211,6 +225,11 @@ export default function Home() {
   const [formRecurso, setFormRecurso] = useState<FormRecurso>(EMPTY_RECURSO)
   const [recursoSaving, setRecursoSaving] = useState(false)
   const [b2bSuccess, setB2bSuccess] = useState(false)
+  const [misAnuncios, setMisAnuncios] = useState<CampanaAd[]>([])
+  const [formAnuncio, setFormAnuncio] = useState<FormAnuncio>(EMPTY_ANUNCIO)
+  const [anuncioSaving, setAnuncioSaving] = useState(false)
+  const [adSuccess, setAdSuccess] = useState(false)
+  const [adsPendientes, setAdsPendientes] = useState<CampanaAd[]>([])
 
   useEffect(() => {
     const key = 'chat_' + new Date().toDateString()
@@ -226,6 +245,11 @@ export default function Home() {
     }
     if (params.get('portal') === 'registro-ong') {
       setPantalla('ong-registro')
+      window.history.replaceState({}, '', '/')
+    }
+    if (params.get('ad') === 'success') {
+      setAdSuccess(true)
+      setPantalla('ong-anuncios')
       window.history.replaceState({}, '', '/')
     }
   }, [])
@@ -599,6 +623,58 @@ export default function Home() {
     setOrgSaving(false)
   }
 
+  async function fetchMisAnuncios() {
+    if (!miOrg) return
+    const { data } = await supabase.from('anuncios_nativos').select('*').eq('org_id', miOrg.id).order('created_at', { ascending:false })
+    setMisAnuncios(data ?? [])
+  }
+
+  async function fetchAdsPendientes() {
+    const { data } = await supabase.from('anuncios_nativos').select('*').eq('status', 'pendiente_revision').order('created_at', { ascending:true })
+    setAdsPendientes(data ?? [])
+  }
+
+  async function moderateAd(id: string, action: 'aprobar' | 'rechazar') {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) return
+    await fetch('/api/admin/moderate-ad', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({ id, action }),
+    })
+    await fetchAdsPendientes()
+    await fetchAnunciosNativos()
+  }
+
+  async function iniciarPagoAnuncio() {
+    if (!formAnuncio.titulo.trim() || !formAnuncio.descripcion.trim() || !formAnuncio.url.trim() || !miOrg) return
+    setAnuncioSaving(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) return
+      const paquete = PAQUETES_PUB.find(p => p.id === formAnuncio.duracion)!
+      const r = await fetch('/api/stripe/checkout-ad', {
+        method:'POST',
+        headers:{ 'Content-Type':'application/json', authorization:`Bearer ${session.access_token}` },
+        body: JSON.stringify({
+          org_id: miOrg.id,
+          org_nombre: miOrg.nombre,
+          titulo: formAnuncio.titulo.trim(),
+          descripcion: formAnuncio.descripcion.trim(),
+          cta: formAnuncio.cta.trim() || 'Ver más',
+          url: formAnuncio.url.trim(),
+          tipo_pantalla: formAnuncio.duracion === 'mes_todas' ? 'todas' : formAnuncio.tipo_pantalla,
+          duracion: formAnuncio.duracion,
+          precio: paquete.precio,
+          email: userEmail,
+        })
+      })
+      const d = await r.json()
+      if (d.url) window.location.href = d.url
+    } catch { alert('Error al iniciar el pago del anuncio') }
+    setAnuncioSaving(false)
+  }
+
   useEffect(() => {
     if (!userId) return
     if (pantalla === 'mensajes') fetchConversaciones(userId)
@@ -607,6 +683,8 @@ export default function Home() {
     if (pantalla === 'alertas') fetchAlertas(userId)
     if (pantalla === 'empleo' || pantalla === 'vivienda') fetchValoraciones()
     if (pantalla === 'ong-dashboard' || pantalla === 'ong-recursos') fetchMiOrg(userId)
+    if (pantalla === 'ong-anuncios') { fetchMiOrg(userId); fetchMisAnuncios() }
+    if (pantalla === 'admin') fetchAdsPendientes()
     if (pantalla === 'tramites') fetchRecursosPublicos()
   }, [pantalla])
 
@@ -1166,6 +1244,27 @@ export default function Home() {
                     <button onClick={() => moderate('viviendas_usuarios', v.id, 'aprobar')} disabled={moderandoId===v.id} style={{ flex:2, background:'#065f46', color:'#fff', border:'none', borderRadius:10, padding:'8px 0', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit', opacity:moderandoId===v.id?0.6:1 }}>✅ Aprobar</button>
                     <button onClick={() => moderate('viviendas_usuarios', v.id, 'rechazar')} disabled={moderandoId===v.id} style={{ flex:2, background:'#dc2626', color:'#fff', border:'none', borderRadius:10, padding:'8px 0', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit', opacity:moderandoId===v.id?0.6:1 }}>❌ Rechazar</button>
                     <button onClick={() => moderate('viviendas_usuarios', v.id, v.destacado?'no-destacar':'destacar')} disabled={moderandoId===v.id} style={{ flex:1, background:v.destacado?'#fef3c7':'#f3f4f6', color:v.destacado?'#92400e':'#374151', border:'none', borderRadius:10, padding:'8px 0', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>{v.destacado?'★':'☆'}</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div style={{ background:'#fff', border:'1px solid #e5e7eb', borderRadius:16, padding:16 }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
+                <p style={{ fontWeight:700, fontSize:15, margin:0, color:'#111' }}>📣 Anuncios pendientes de revisión</p>
+                <button onClick={fetchAdsPendientes} style={{ fontSize:12, color:'#d97706', background:'none', border:'none', cursor:'pointer', fontFamily:'inherit', fontWeight:600 }}>Actualizar</button>
+              </div>
+              {adsPendientes.length === 0 && (
+                <p style={{ fontSize:13, color:'#9ca3af', margin:0, textAlign:'center', padding:'12px 0' }}>No hay anuncios pendientes ✅</p>
+              )}
+              {adsPendientes.map(ad => (
+                <div key={ad.id} style={{ borderBottom:'1px solid #f3f4f6', padding:'12px 0' }}>
+                  <span style={{ fontSize:10, background:'#fffbeb', color:'#92400e', padding:'2px 6px', borderRadius:8, fontWeight:700 }}>ANUNCIO NATIVO</span>
+                  <p style={{ fontWeight:700, fontSize:14, color:'#111', margin:'4px 0 2px' }}>{ad.titulo}</p>
+                  <p style={{ fontSize:12, color:'#6b7280', margin:'0 0 2px' }}>{ad.descripcion}</p>
+                  <p style={{ fontSize:11, color:'#6b7280', margin:'0 0 6px' }}>Pantalla: {ad.tipo_pantalla} · {ad.duracion} · {ad.precio_pagado}€ · {ad.org_nombre}</p>
+                  <div style={{ display:'flex', gap:6 }}>
+                    <button onClick={() => moderateAd(ad.id, 'aprobar')} style={{ flex:2, background:'#065f46', color:'#fff', border:'none', borderRadius:10, padding:'8px 0', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>✅ Activar</button>
+                    <button onClick={() => moderateAd(ad.id, 'rechazar')} style={{ flex:2, background:'#dc2626', color:'#fff', border:'none', borderRadius:10, padding:'8px 0', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>❌ Rechazar</button>
                   </div>
                 </div>
               ))}
@@ -1931,6 +2030,14 @@ export default function Home() {
               </div>
               <span style={{ color:'#9ca3af' }}>→</span>
             </button>
+            <button onClick={() => { fetchMisAnuncios(); setPantalla('ong-anuncios') }} style={{ background:'linear-gradient(135deg,#fffbeb,#fef3c7)', border:'1px solid #fcd34d', borderRadius:14, padding:'14px 16px', cursor:'pointer', fontFamily:'inherit', display:'flex', alignItems:'center', gap:12, textAlign:'left' as const }}>
+              <span style={{ fontSize:22 }}>📣</span>
+              <div style={{ flex:1 }}>
+                <p style={{ fontWeight:700, fontSize:14, color:'#92400e', margin:0 }}>Publicidad segmentada</p>
+                <p style={{ fontSize:12, color:'#6b7280', margin:0 }}>{misAnuncios.filter(a=>a.activo).length} campaña{misAnuncios.filter(a=>a.activo).length!==1?'s':''} activa{misAnuncios.filter(a=>a.activo).length!==1?'s':''} · desde 99€</p>
+              </div>
+              <span style={{ color:'#9ca3af' }}>→</span>
+            </button>
             <button onClick={() => setPantalla('ong-registro')} style={{ background:'#f9fafb', border:'1px solid #e5e7eb', borderRadius:14, padding:'14px 16px', cursor:'pointer', fontFamily:'inherit', display:'flex', alignItems:'center', gap:12, textAlign:'left' as const }}>
               <span style={{ fontSize:22 }}>✏️</span>
               <div style={{ flex:1 }}>
@@ -2047,6 +2154,176 @@ export default function Home() {
               <button onClick={saveRecurso} disabled={recursoSaving || !formRecurso.titulo.trim() || !formRecurso.descripcion.trim() || !formRecurso.ciudad.trim()} style={{ ...btn, background:'#059669', opacity:(recursoSaving||!formRecurso.titulo.trim()||!formRecurso.descripcion.trim()||!formRecurso.ciudad.trim())?0.5:1 }}>
                 {recursoSaving ? 'Publicando...' : '📋 Publicar recurso →'}
               </button>
+            </div>
+          </div>
+        )}
+
+        {pantalla === 'ong-anuncios' && miOrg && (
+          <div style={{ padding:16, display:'flex', flexDirection:'column', gap:14 }}>
+            <div style={{ background:'linear-gradient(135deg,#d97706,#92400e)', borderRadius:20, padding:'20px 24px', color:'#fff' }}>
+              <button onClick={() => setPantalla('ong-dashboard')} style={{ background:'rgba(255,255,255,0.2)', border:'none', borderRadius:10, padding:'4px 10px', color:'#fff', fontSize:12, cursor:'pointer', fontFamily:'inherit', marginBottom:10 }}>← Volver</button>
+              <h2 style={{ fontSize:20, fontWeight:800, margin:'0 0 4px' }}>📣 Publicidad segmentada</h2>
+              <p style={{ fontSize:13, opacity:0.9, margin:0 }}>Llega exactamente a quien lo necesita · desde 99€</p>
+            </div>
+            {adSuccess && (
+              <div style={{ background:'#f0fdf4', border:'1px solid #bbf7d0', borderRadius:14, padding:14 }}>
+                <p style={{ fontSize:14, fontWeight:700, color:'#065f46', margin:'0 0 2px' }}>🎉 ¡Pago recibido! Tu campaña está en revisión.</p>
+                <p style={{ fontSize:12, color:'#6b7280', margin:0 }}>La activaremos en menos de 24h. Te avisaremos por email.</p>
+              </div>
+            )}
+            <button onClick={() => { setFormAnuncio(EMPTY_ANUNCIO); setPantalla('ong-nuevo-anuncio') }} style={{ ...btn, background:'#d97706', display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
+              📣 + Nueva campaña
+            </button>
+            {misAnuncios.length === 0 && !adSuccess && (
+              <div style={{ textAlign:'center', padding:'32px 20px' }}>
+                <p style={{ fontSize:40, margin:'0 0 8px' }}>📣</p>
+                <p style={{ fontWeight:700, fontSize:15, color:'#111', margin:'0 0 4px' }}>Sin campañas todavía</p>
+                <p style={{ fontSize:13, color:'#6b7280', margin:'0 0 16px' }}>Crea tu primera campaña y llega a miles de migrantes segmentados por lo que buscan</p>
+                <div style={{ background:'#fffbeb', border:'1px solid #fde68a', borderRadius:14, padding:14, textAlign:'left' as const }}>
+                  <p style={{ fontWeight:700, fontSize:13, color:'#92400e', margin:'0 0 8px' }}>¿Por qué anunciarte aquí?</p>
+                  {['10.000+ usuarios activos cada mes','Segmentación por pantalla: Empleo, Vivienda, Trámites','Público con alta intención: buscan activamente','Formatos nativos — no intrusivos, alta conversión','Sin contrato mínimo — paga por campaña'].map(item => (
+                    <div key={item} style={{ display:'flex', gap:8, alignItems:'flex-start', marginBottom:5 }}>
+                      <span style={{ color:'#d97706', fontWeight:700, fontSize:12 }}>✓</span>
+                      <p style={{ fontSize:12, color:'#374151', margin:0 }}>{item}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {misAnuncios.length > 0 && (
+              <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+                <p style={{ fontSize:13, fontWeight:700, color:'#374151', margin:0 }}>Tus campañas</p>
+                {misAnuncios.map(a => {
+                  const statusColor = a.status==='activo'?{bg:'#f0fdf4',txt:'#065f46',label:'✓ Activo'} : a.status==='pendiente'?{bg:'#fef3c7',txt:'#92400e',label:'⏳ En revisión'} : a.status==='expirado'?{bg:'#f3f4f6',txt:'#6b7280',label:'Expirado'} : {bg:'#fee2e2',txt:'#991b1b',label:'Rechazado'}
+                  const pantLabel = a.tipo_pantalla==='empleo'?'💼 Empleo':a.tipo_pantalla==='vivienda'?'🏠 Vivienda':a.tipo_pantalla==='tramites'?'📋 Trámites':'🌐 Todas'
+                  return (
+                    <div key={a.id} style={{ background:'#fff', border:'1px solid #e5e7eb', borderRadius:16, padding:14 }}>
+                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:6 }}>
+                        <div style={{ flex:1, minWidth:0 }}>
+                          <div style={{ display:'flex', gap:6, marginBottom:4, flexWrap:'wrap' as const }}>
+                            <span style={{ fontSize:11, background:statusColor.bg, color:statusColor.txt, padding:'2px 8px', borderRadius:10, fontWeight:700 }}>{statusColor.label}</span>
+                            <span style={{ fontSize:11, background:'#eff6ff', color:'#1e40af', padding:'2px 8px', borderRadius:10, fontWeight:600 }}>{pantLabel}</span>
+                            <span style={{ fontSize:11, background:'#f3f4f6', color:'#374151', padding:'2px 8px', borderRadius:10, fontWeight:600 }}>{a.duracion==='semana'?'1 semana':a.duracion==='mes'?'1 mes':'1 mes · todas'}</span>
+                          </div>
+                          <p style={{ fontWeight:700, fontSize:14, color:'#111', margin:'0 0 2px' }}>{a.titulo}</p>
+                          <p style={{ fontSize:12, color:'#6b7280', margin:'0 0 2px' }}>{a.descripcion}</p>
+                          <p style={{ fontSize:11, color:'#1B4FCC', margin:0 }}>🔗 {a.url}</p>
+                        </div>
+                      </div>
+                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginTop:8, paddingTop:8, borderTop:'1px solid #f3f4f6' }}>
+                        <p style={{ fontSize:11, color:'#6b7280', margin:0 }}>
+                          {a.fecha_inicio && a.fecha_fin ? `${new Date(a.fecha_inicio).toLocaleDateString('es-ES',{day:'numeric',month:'short'})} → ${new Date(a.fecha_fin).toLocaleDateString('es-ES',{day:'numeric',month:'short'})}` : `Creado ${new Date(a.created_at).toLocaleDateString('es-ES',{day:'numeric',month:'short',year:'numeric'})}`}
+                        </p>
+                        <p style={{ fontSize:12, fontWeight:700, color:'#d97706', margin:0 }}>{a.precio_pagado}€ pagados</p>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {pantalla === 'ong-nuevo-anuncio' && miOrg && (
+          <div style={{ padding:16, display:'flex', flexDirection:'column', gap:14 }}>
+            <div style={{ background:'linear-gradient(135deg,#d97706,#92400e)', borderRadius:20, padding:'20px 24px', color:'#fff' }}>
+              <button onClick={() => setPantalla('ong-anuncios')} style={{ background:'rgba(255,255,255,0.2)', border:'none', borderRadius:10, padding:'4px 10px', color:'#fff', fontSize:12, cursor:'pointer', fontFamily:'inherit', marginBottom:10 }}>← Volver</button>
+              <h2 style={{ fontSize:20, fontWeight:800, margin:'0 0 4px' }}>📣 Nueva campaña</h2>
+              <p style={{ fontSize:13, opacity:0.9, margin:0 }}>Tu anuncio aparecerá como card nativo en la pantalla elegida</p>
+            </div>
+
+            {/* Paso 1: Elige paquete */}
+            <div style={{ background:'#fff', border:'1px solid #e5e7eb', borderRadius:16, padding:16 }}>
+              <p style={{ fontWeight:700, fontSize:14, color:'#111', margin:'0 0 12px' }}>1. Elige tu paquete</p>
+              <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+                {PAQUETES_PUB.map(p => (
+                  <button key={p.id} onClick={() => setFormAnuncio(f => ({ ...f, duracion:p.id }))} style={{ background:formAnuncio.duracion===p.id?p.color:'#f9fafb', border:`2px solid ${formAnuncio.duracion===p.id?p.border:'#e5e7eb'}`, borderRadius:14, padding:'12px 14px', cursor:'pointer', fontFamily:'inherit', textAlign:'left' as const, transition:'all 0.15s' }}>
+                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                      <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                        <p style={{ fontWeight:700, fontSize:14, color:'#111', margin:0 }}>{p.label}</p>
+                        {p.badge && <span style={{ fontSize:11, background:p.id==='mes'?'#059669':'#d97706', color:'#fff', padding:'2px 8px', borderRadius:10, fontWeight:700 }}>{p.badge}</span>}
+                      </div>
+                      <p style={{ fontWeight:800, fontSize:18, color:'#d97706', margin:0 }}>{p.precio}€</p>
+                    </div>
+                    <p style={{ fontSize:12, color:'#6b7280', margin:'4px 0 0' }}>{p.desc}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Paso 2: Elige pantalla (no aplica si es mes_todas) */}
+            {formAnuncio.duracion !== 'mes_todas' && (
+              <div style={{ background:'#fff', border:'1px solid #e5e7eb', borderRadius:16, padding:16 }}>
+                <p style={{ fontWeight:700, fontSize:14, color:'#111', margin:'0 0 12px' }}>2. Selecciona la pantalla</p>
+                <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                  {PANTALLAS_AD.map(p => (
+                    <button key={p.id} onClick={() => setFormAnuncio(f => ({ ...f, tipo_pantalla:p.id }))} style={{ background:formAnuncio.tipo_pantalla===p.id?'#eff6ff':'#f9fafb', border:`2px solid ${formAnuncio.tipo_pantalla===p.id?'#1B4FCC':'#e5e7eb'}`, borderRadius:12, padding:'11px 14px', cursor:'pointer', fontFamily:'inherit', textAlign:'left' as const, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                      <p style={{ fontWeight:700, fontSize:14, color:'#111', margin:0 }}>{p.label}</p>
+                      <p style={{ fontSize:12, color:'#6b7280', margin:0 }}>{p.desc}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {formAnuncio.duracion === 'mes_todas' && (
+              <div style={{ background:'#fffbeb', border:'1px solid #fde68a', borderRadius:14, padding:12 }}>
+                <p style={{ fontSize:13, color:'#92400e', margin:0, fontWeight:600 }}>🌐 Tu anuncio aparecerá en Empleo + Vivienda + Trámites simultáneamente</p>
+              </div>
+            )}
+
+            {/* Paso 3: Contenido del anuncio */}
+            <div style={{ background:'#fff', border:'1px solid #e5e7eb', borderRadius:16, padding:16, display:'flex', flexDirection:'column', gap:14 }}>
+              <p style={{ fontWeight:700, fontSize:14, color:'#111', margin:0 }}>{formAnuncio.duracion !== 'mes_todas' ? '3' : '2'}. Contenido del anuncio</p>
+              <div>
+                <p style={{ fontSize:13, fontWeight:600, color:'#374151', margin:'0 0 5px' }}>Título del anuncio * <span style={{ fontWeight:400, color:'#9ca3af' }}>(máx. 60 caracteres)</span></p>
+                <input value={formAnuncio.titulo} onChange={e => setFormAnuncio(f => ({ ...f, titulo:e.target.value.slice(0,60) }))} placeholder="Ej: Asesoría gratis para tu arraigo social" style={{ width:'100%', border:'1px solid #d1d5db', borderRadius:10, padding:'10px 12px', fontSize:14, fontFamily:'inherit', outline:'none', boxSizing:'border-box' as const }} />
+                <p style={{ fontSize:11, color:'#9ca3af', margin:'3px 0 0', textAlign:'right' as const }}>{formAnuncio.titulo.length}/60</p>
+              </div>
+              <div>
+                <p style={{ fontSize:13, fontWeight:600, color:'#374151', margin:'0 0 5px' }}>Descripción * <span style={{ fontWeight:400, color:'#9ca3af' }}>(máx. 120 caracteres)</span></p>
+                <textarea value={formAnuncio.descripcion} onChange={e => setFormAnuncio(f => ({ ...f, descripcion:e.target.value.slice(0,120) }))} placeholder="Ej: Cruz Roja te ayuda con los trámites de forma gratuita. Sin cita previa." rows={2} style={{ width:'100%', border:'1px solid #d1d5db', borderRadius:10, padding:'10px 12px', fontSize:13, fontFamily:'inherit', outline:'none', resize:'none', boxSizing:'border-box' as const }} />
+                <p style={{ fontSize:11, color:'#9ca3af', margin:'3px 0 0', textAlign:'right' as const }}>{formAnuncio.descripcion.length}/120</p>
+              </div>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+                <div>
+                  <p style={{ fontSize:13, fontWeight:600, color:'#374151', margin:'0 0 5px' }}>Texto del botón</p>
+                  <input value={formAnuncio.cta} onChange={e => setFormAnuncio(f => ({ ...f, cta:e.target.value.slice(0,30) }))} placeholder="Ver más" style={{ width:'100%', border:'1px solid #d1d5db', borderRadius:10, padding:'10px 12px', fontSize:13, fontFamily:'inherit', outline:'none', boxSizing:'border-box' as const }} />
+                </div>
+                <div>
+                  <p style={{ fontSize:13, fontWeight:600, color:'#374151', margin:'0 0 5px' }}>URL de destino *</p>
+                  <input value={formAnuncio.url} onChange={e => setFormAnuncio(f => ({ ...f, url:e.target.value }))} placeholder="https://..." style={{ width:'100%', border:'1px solid #d1d5db', borderRadius:10, padding:'10px 12px', fontSize:13, fontFamily:'inherit', outline:'none', boxSizing:'border-box' as const }} />
+                </div>
+              </div>
+            </div>
+
+            {/* Preview */}
+            {formAnuncio.titulo && (
+              <div>
+                <p style={{ fontSize:12, fontWeight:600, color:'#6b7280', margin:'0 0 8px' }}>Vista previa del anuncio:</p>
+                <div style={{ background:'linear-gradient(135deg,#eff6ff,#dbeafe)', border:'1px solid #93c5fd', borderRadius:16, padding:'14px 16px' }}>
+                  <span style={{ fontSize:10, background:'#1B4FCC', color:'#fff', padding:'2px 8px', borderRadius:10, fontWeight:700 }}>Patrocinado · {miOrg.nombre}</span>
+                  <p style={{ fontWeight:700, fontSize:14, color:'#1e3a8a', margin:'8px 0 4px' }}>{formAnuncio.titulo || 'Título del anuncio'}</p>
+                  <p style={{ fontSize:13, color:'#374151', margin:'0 0 10px', lineHeight:1.5 }}>{formAnuncio.descripcion || 'Descripción del anuncio...'}</p>
+                  <div style={{ background:'#1B4FCC', color:'#fff', borderRadius:10, padding:'9px 16px', fontSize:13, fontWeight:700, display:'inline-block' }}>{formAnuncio.cta || 'Ver más'} →</div>
+                </div>
+              </div>
+            )}
+
+            {/* Resumen y pago */}
+            <div style={{ background:'#f0fdf4', border:'1px solid #bbf7d0', borderRadius:16, padding:16 }}>
+              <p style={{ fontWeight:700, fontSize:14, color:'#065f46', margin:'0 0 10px' }}>Resumen del pedido</p>
+              {(() => { const p = PAQUETES_PUB.find(x => x.id===formAnuncio.duracion)!; return (
+                <>
+                  <div style={{ display:'flex', justifyContent:'space-between', marginBottom:4 }}>
+                    <p style={{ fontSize:13, color:'#374151', margin:0 }}>{p.label} · {formAnuncio.duracion!=='mes_todas' ? PANTALLAS_AD.find(x=>x.id===formAnuncio.tipo_pantalla)?.label : '🌐 Todas las pantallas'}</p>
+                    <p style={{ fontWeight:700, fontSize:14, color:'#065f46', margin:0 }}>{p.precio}€</p>
+                  </div>
+                  <p style={{ fontSize:11, color:'#6b7280', margin:'4px 0 12px' }}>IVA incluido · Pago único · Sin renovación automática</p>
+                  <button onClick={iniciarPagoAnuncio} disabled={anuncioSaving || !formAnuncio.titulo.trim() || !formAnuncio.descripcion.trim() || !formAnuncio.url.trim()} style={{ ...btn, background:'#d97706', opacity:(anuncioSaving||!formAnuncio.titulo.trim()||!formAnuncio.descripcion.trim()||!formAnuncio.url.trim())?0.5:1 }}>
+                    {anuncioSaving ? 'Redirigiendo a Stripe...' : `💳 Pagar ${p.precio}€ y publicar →`}
+                  </button>
+                </>
+              )})()}
             </div>
           </div>
         )}

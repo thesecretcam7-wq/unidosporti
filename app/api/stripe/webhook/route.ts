@@ -26,15 +26,29 @@ export async function POST(req: NextRequest) {
     const userId = session.metadata?.user_id
     const planB2b = session.metadata?.plan_b2b
     const orgId = session.metadata?.org_id
+    const tipo = session.metadata?.tipo
+    const adId = session.metadata?.ad_id
 
-    if (planB2b && orgId) {
-      // B2B checkout: update organizaciones table
+    if (tipo === 'ad_campaign' && adId) {
+      // Ad campaign payment: activate the ad and set dates
+      const duracion = session.metadata?.duracion || 'semana'
+      const now = new Date()
+      const fechaFin = new Date(now)
+      fechaFin.setDate(fechaFin.getDate() + (duracion === 'semana' ? 7 : 30))
+      await adminClient.from('anuncios_nativos').update({
+        status: 'pendiente_revision',
+        stripe_session_id: session.id,
+        fecha_inicio: now.toISOString(),
+        fecha_fin: fechaFin.toISOString(),
+      }).eq('id', adId)
+    } else if (planB2b && orgId) {
+      // B2B subscription: update organizaciones table
       await adminClient.from('organizaciones').update({
         plan: planB2b,
         stripe_customer_id: session.customer as string,
       }).eq('id', orgId)
     } else if (userId) {
-      // Regular user checkout
+      // Regular user premium checkout
       await adminClient.from('profiles').update({
         plan: 'premium',
         stripe_customer_id: session.customer as string,
