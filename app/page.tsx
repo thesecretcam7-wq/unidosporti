@@ -1781,7 +1781,7 @@ export default function Home() {
                 </div>
               )}
               {comunidadMsgs.map((m) => {
-                const nombre = m.nombre || m.user_email.split('@')[0]
+                const nombre = (m.nombre || m.user_email.split('@')[0]).split(' ')[0]
                 const esMio = m.user_id === userId
                 const hora = new Date(m.created_at).toLocaleTimeString('es-ES', { hour:'2-digit', minute:'2-digit' })
                 // Colores de nick estilo LatinChat (determinista según nombre)
