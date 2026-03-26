@@ -104,7 +104,7 @@ function Badge({ text, color = 'blue' }: { text: string, color?: string }) {
   return <span style={{ fontSize:11, background:c.bg, color:c.txt, padding:'3px 8px', borderRadius:20, fontWeight:700, whiteSpace:'nowrap' as const }}>{text}</span>
 }
 
-const btn: React.CSSProperties = { width:'100%', background:'#1B4FCC', color:'#fff', border:'none', borderRadius:12, padding:'13px 0', fontSize:15, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }
+const btn: React.CSSProperties = { width:'100%', background:'#2563EB', color:'#fff', border:'none', borderRadius:14, padding:'14px 0', fontSize:15, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }
 
 export default function Home() {
   const [pantalla, setPantalla] = useState<Pantalla>('inicio')
@@ -785,7 +785,7 @@ export default function Home() {
     )
   }
 
-  const wrap: React.CSSProperties = { maxWidth:480, margin:'0 auto', height:'100dvh', display:'flex', flexDirection:'column', background:'#f8f9ff' }
+  const wrap: React.CSSProperties = { maxWidth:480, margin:'0 auto', height:'100dvh', display:'flex', flexDirection:'column', background:'#F1F5F9' }
 
   if (sessionLoading) return (
     <div style={{ ...wrap, alignItems:'center', justifyContent:'center' }}>
@@ -796,39 +796,39 @@ export default function Home() {
 
   if (!userEmail) return (
     <div style={{ ...wrap, overflowY:'auto', background:'#f0f4ff' }}>
-      <div style={{ background:'linear-gradient(160deg,#1B4FCC 0%,#1e3a8a 100%)', padding:'44px 24px 32px', display:'flex', flexDirection:'column', alignItems:'center', gap:14, textAlign:'center' }}>
+      <div style={{ background:'linear-gradient(160deg,#1e40af 0%,#2563EB 50%,#3b82f6 100%)', padding:'52px 24px 36px', display:'flex', flexDirection:'column', alignItems:'center', gap:14, textAlign:'center' }}>
         <img src="/logo.png" alt="UnidosPorTi" style={{ width:160, height:160, objectFit:'contain' }} />
         <div>
           <p style={{ fontSize:17, color:'rgba(255,255,255,0.95)', margin:'0 0 8px', fontWeight:700 }}>Tu guía para vivir mejor en España 🇪🇸</p>
           <p style={{ fontSize:13, color:'rgba(255,255,255,0.75)', margin:0, lineHeight:1.6, maxWidth:300 }}>No importa si llevas un mes o tres años — estamos aquí para ayudarte</p>
         </div>
       </div>
-      <div style={{ padding:'20px 18px 32px', display:'flex', flexDirection:'column', gap:11 }}>
+      <div style={{ padding:'24px 18px 32px', display:'flex', flexDirection:'column', gap:10 }}>
         {[
-          { icon:'📄', title:'Regulariza tu situación', desc:'Arraigo social, laboral y familiar — paso a paso', color:'#eff6ff', border:'#bfdbfe' },
-          { icon:'💼', title:'Trabajo para migrantes', desc:'Arraigo, precontrato, NIE en trámite — sin discriminación', color:'#f0fdf4', border:'#bbf7d0' },
-          { icon:'🏠', title:'Vivienda sin barreras', desc:'Sin nómina, sin aval, sin discriminación', color:'#fefce8', border:'#fde68a' },
-          { icon:'🤖', title:'Asistente IA 24/7', desc:'Resuelve tus dudas legales, laborales y de vivienda', color:'#fdf4ff', border:'#e9d5ff' },
-          { icon:'🧮', title:'Calculadora de arraigo', desc:'Descubre qué tipo de regularización puedes pedir', color:'#fff7ed', border:'#fed7aa' },
-          { icon:'📋', title:'Analiza tu contrato con IA', desc:'Detecta cláusulas abusivas antes de firmar', color:'#f0fdf4', border:'#bbf7d0' },
-        ].map(({ icon, title, desc, color, border }) => (
-          <div key={title} style={{ background:color, border:`1px solid ${border}`, borderRadius:16, padding:'13px 15px', display:'flex', gap:13, alignItems:'flex-start' }}>
-            <span style={{ fontSize:24, flexShrink:0, marginTop:1 }}>{icon}</span>
+          { icon:'📄', title:'Regulariza tu situación', desc:'Arraigo social, laboral y familiar — paso a paso' },
+          { icon:'💼', title:'Trabajo para migrantes', desc:'Arraigo, precontrato, NIE en trámite — sin discriminación' },
+          { icon:'🏡', title:'Vivienda sin barreras', desc:'Sin nómina, sin aval, sin discriminación' },
+          { icon:'🤖', title:'Asistente IA 24/7', desc:'Resuelve tus dudas legales, laborales y de vivienda' },
+          { icon:'🧮', title:'Calculadora de arraigo', desc:'Descubre qué tipo de regularización puedes pedir' },
+          { icon:'📋', title:'Analiza tu contrato con IA', desc:'Detecta cláusulas abusivas antes de firmar' },
+        ].map(({ icon, title, desc }) => (
+          <div key={title} style={{ background:'#fff', border:'1px solid #E2E8F0', borderRadius:14, padding:'13px 15px', display:'flex', gap:13, alignItems:'flex-start', boxShadow:'0 1px 2px rgba(15,23,42,0.04)' }}>
+            <span style={{ fontSize:22, flexShrink:0, marginTop:1 }}>{icon}</span>
             <div>
-              <p style={{ fontWeight:700, fontSize:14, color:'#111', margin:'0 0 2px' }}>{title}</p>
-              <p style={{ fontSize:12, color:'#6b7280', margin:0, lineHeight:1.5 }}>{desc}</p>
+              <p style={{ fontWeight:700, fontSize:14, color:'#0F172A', margin:'0 0 2px' }}>{title}</p>
+              <p style={{ fontSize:12, color:'#64748B', margin:0, lineHeight:1.5 }}>{desc}</p>
             </div>
           </div>
         ))}
         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:10, marginTop:2 }}>
           {[{ n:'100%', label:'Gratis' },{ n:'24/7', label:'Disponible' },{ n:'0€', label:'Sin coste' }].map(({ n, label }) => (
-            <div key={label} style={{ background:'#fff', border:'1px solid #e5e7eb', borderRadius:14, padding:'12px 6px', textAlign:'center' }}>
-              <p style={{ fontSize:18, fontWeight:900, color:'#1B4FCC', margin:'0 0 2px' }}>{n}</p>
-              <p style={{ fontSize:11, color:'#6b7280', margin:0 }}>{label}</p>
+            <div key={label} style={{ background:'#EFF6FF', border:'1px solid #BFDBFE', borderRadius:14, padding:'12px 6px', textAlign:'center' }}>
+              <p style={{ fontSize:18, fontWeight:900, color:'#2563EB', margin:'0 0 2px' }}>{n}</p>
+              <p style={{ fontSize:11, color:'#64748B', margin:0 }}>{label}</p>
             </div>
           ))}
         </div>
-        <button onClick={loginGoogle} disabled={authLoading} style={{ width:'100%', marginTop:6, background:'#fff', color:'#111', border:'2px solid #e5e7eb', borderRadius:16, padding:'16px 0', fontSize:16, fontWeight:700, cursor:authLoading?'wait':'pointer', fontFamily:'inherit', display:'flex', alignItems:'center', justifyContent:'center', gap:12, opacity:authLoading?0.7:1, boxShadow:'0 4px 20px rgba(27,79,204,0.15)' }}>
+        <button onClick={loginGoogle} disabled={authLoading} style={{ width:'100%', marginTop:6, background:'#fff', color:'#0F172A', border:'1.5px solid #E2E8F0', borderRadius:16, padding:'15px 0', fontSize:15, fontWeight:700, cursor:authLoading?'wait':'pointer', fontFamily:'inherit', display:'flex', alignItems:'center', justifyContent:'center', gap:12, opacity:authLoading?0.7:1, boxShadow:'0 2px 8px rgba(15,23,42,0.08)' }}>
           <GoogleIcon />
           {authLoading ? 'Redirigiendo...' : 'Empezar gratis con Google'}
         </button>
@@ -839,69 +839,71 @@ export default function Home() {
 
   return (
     <div style={wrap}>
-      <header style={{ background:'#fff', borderBottom:'1px solid #e5e7eb', padding:'10px 16px', paddingTop:'calc(10px + env(safe-area-inset-top, 0px))', display:'flex', alignItems:'center', justifyContent:'space-between', flexShrink:0 }}>
+      <header style={{ background:'#fff', borderBottom:'1px solid #E2E8F0', padding:'0 16px', paddingTop:'env(safe-area-inset-top, 0px)', height:'calc(56px + env(safe-area-inset-top, 0px))', display:'flex', alignItems:'flex-end', justifyContent:'space-between', paddingBottom:10, flexShrink:0, boxShadow:'0 1px 3px rgba(15,23,42,0.06)' }}>
         <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-          <img src="/logo.png" alt="UnidosPorTi" style={{ width:56, height:56, objectFit:'contain' }} />
+          <img src="/logo.png" alt="UnidosPorTi" style={{ width:36, height:36, objectFit:'contain' }} />
+          <span style={{ fontWeight:800, fontSize:17, color:'#0F172A', letterSpacing:'-0.3px' }}>UnidosPorTi</span>
         </div>
-        <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-          <button onClick={() => setPantalla('citas')} style={{ background:'none', border:'none', cursor:'pointer', position:'relative' as const, padding:4 }}>
+        <div style={{ display:'flex', gap:6, alignItems:'center' }}>
+          <button onClick={() => setPantalla('citas')} style={{ background:'none', border:'none', cursor:'pointer', position:'relative' as const, padding:6, borderRadius:10 }}>
             <span style={{ fontSize:20 }}>📅</span>
-            {citasProximas.length > 0 && <span style={{ position:'absolute' as const, top:0, right:0, background:'#0284c7', color:'#fff', borderRadius:'50%', width:16, height:16, fontSize:10, display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700 }}>{citasProximas.length}</span>}
+            {citasProximas.length > 0 && <span style={{ position:'absolute' as const, top:2, right:2, background:'#2563EB', color:'#fff', borderRadius:'50%', width:14, height:14, fontSize:9, display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700 }}>{citasProximas.length}</span>}
           </button>
-          <button onClick={() => setPantalla('mensajes')} style={{ background:'none', border:'none', cursor:'pointer', position:'relative' as const, padding:4 }}>
+          <button onClick={() => setPantalla('mensajes')} style={{ background:'none', border:'none', cursor:'pointer', position:'relative' as const, padding:6, borderRadius:10 }}>
             <span style={{ fontSize:20 }}>✉️</span>
-            {mensajesNoLeidos > 0 && <span style={{ position:'absolute' as const, top:0, right:0, background:'#7c3aed', color:'#fff', borderRadius:'50%', width:16, height:16, fontSize:10, display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700 }}>{mensajesNoLeidos}</span>}
+            {mensajesNoLeidos > 0 && <span style={{ position:'absolute' as const, top:2, right:2, background:'#7c3aed', color:'#fff', borderRadius:'50%', width:14, height:14, fontSize:9, display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700 }}>{mensajesNoLeidos}</span>}
           </button>
-          <button onClick={() => setPantalla('notificaciones')} style={{ background:'none', border:'none', cursor:'pointer', position:'relative' as const, padding:4 }}>
+          <button onClick={() => setPantalla('notificaciones')} style={{ background:'none', border:'none', cursor:'pointer', position:'relative' as const, padding:6, borderRadius:10 }}>
             <span style={{ fontSize:20 }}>🔔</span>
-            {notifCount > 0 && <span style={{ position:'absolute' as const, top:0, right:0, background:'#ef4444', color:'#fff', borderRadius:'50%', width:16, height:16, fontSize:10, display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700 }}>{notifCount}</span>}
+            {notifCount > 0 && <span style={{ position:'absolute' as const, top:2, right:2, background:'#ef4444', color:'#fff', borderRadius:'50%', width:14, height:14, fontSize:9, display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700 }}>{notifCount}</span>}
           </button>
-          <button onClick={() => setPantalla('perfil')} style={{ background:'#eff6ff', border:'1px solid #bfdbfe', borderRadius:20, padding:'5px 10px', cursor:'pointer', fontSize:12, fontWeight:700, color:'#1e40af', fontFamily:'inherit' }}>
-            👤 {editNombre ? editNombre.split(' ')[0] : 'Perfil'}
+          <button onClick={() => setPantalla('perfil')} style={{ background:'#2563EB', border:'none', borderRadius:'50%', width:34, height:34, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+            <span style={{ color:'#fff', fontWeight:800, fontSize:14 }}>{editNombre ? editNombre.trim()[0].toUpperCase() : userEmail ? userEmail[0].toUpperCase() : '?'}</span>
           </button>
-          <button onClick={logout} style={{ fontSize:12, background:'#f3f4f6', border:'none', borderRadius:20, padding:'5px 10px', cursor:'pointer', color:'#374151', fontFamily:'inherit' }}>Salir</button>
         </div>
       </header>
 
       <div style={{ flex:1, overflowY:'auto', paddingBottom:'calc(72px + env(safe-area-inset-bottom, 0px))' }}>
 
         {pantalla === 'inicio' && (
-          <div style={{ padding:16, display:'flex', flexDirection:'column', gap:14 }}>
-            <div style={{ background:'linear-gradient(135deg,#1B4FCC,#2563eb)', borderRadius:20, padding:'20px 24px', color:'#fff' }}>
-              <p style={{ fontSize:12, opacity:0.8, margin:'0 0 2px' }}>Hola {editNombre ? `${editNombre.split(' ')[0]} 👋` : '👋'}</p>
-              <h1 style={{ fontSize:22, fontWeight:800, margin:'0 0 4px' }}>¿En qué te ayudamos hoy?</h1>
-              <p style={{ fontSize:13, opacity:0.85, margin:0 }}>Todo lo que necesitas para vivir mejor en España</p>
+          <div style={{ padding:'16px 16px', display:'flex', flexDirection:'column', gap:16 }}>
+            <div style={{ background:'linear-gradient(135deg,#1e40af 0%,#2563EB 60%,#3b82f6 100%)', borderRadius:20, padding:'22px 24px', color:'#fff', position:'relative' as const, overflow:'hidden' }}>
+              <div style={{ position:'absolute' as const, top:-20, right:-20, width:120, height:120, background:'rgba(255,255,255,0.06)', borderRadius:'50%' }} />
+              <div style={{ position:'absolute' as const, bottom:-30, right:20, width:80, height:80, background:'rgba(255,255,255,0.04)', borderRadius:'50%' }} />
+              <p style={{ fontSize:12, opacity:0.8, margin:'0 0 4px', letterSpacing:'0.3px' }}>Hola {editNombre ? `${editNombre.split(' ')[0]} 👋` : '👋'}</p>
+              <h1 style={{ fontSize:22, fontWeight:800, margin:'0 0 6px', letterSpacing:'-0.5px' }}>¿En qué te ayudamos hoy?</h1>
+              <p style={{ fontSize:13, opacity:0.85, margin:0, lineHeight:1.5 }}>Todo lo que necesitas para vivir mejor en España</p>
             </div>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
               {[
-                { id:'empleo', icon:'💼', label:'Trabajo', sub:`${dbEmpleos.length} ofertas activas`, color:'#f0fdf4', border:'#bbf7d0', badge:'Nuevo' },
-                { id:'vivienda', icon:'🏠', label:'Vivienda', sub:`${dbViviendas.length} opciones`, color:'#fefce8', border:'#fde68a', badge:'Nuevo' },
-                { id:'chat', icon:'🤖', label:'Chat IA', sub:'Dudas al instante', color:'#eff6ff', border:'#bfdbfe', badge:'' },
-                { id:'tramites', icon:'📋', label:'Trámites', sub:'Arraigo y papeles', color:'#fdf4ff', border:'#e9d5ff', badge:'' },
-              ].map(({ id, icon, label, sub, color, border, badge }) => (
-                <button key={id} onClick={() => setPantalla(id as Pantalla)} style={{ background:color, border:`1px solid ${border}`, borderRadius:18, padding:'16px 14px', textAlign:'left', cursor:'pointer', fontFamily:'inherit', position:'relative' as const }}>
-                  {badge && <span style={{ position:'absolute' as const, top:10, right:10, fontSize:9, background:'#1B4FCC', color:'#fff', padding:'2px 6px', borderRadius:10, fontWeight:700 }}>{badge}</span>}
-                  <div style={{ fontSize:28, marginBottom:6 }}>{icon}</div>
-                  <p style={{ fontWeight:700, fontSize:15, margin:'0 0 2px', color:'#111' }}>{label}</p>
-                  <p style={{ fontSize:11, color:'#6b7280', margin:0 }}>{sub}</p>
+                { id:'empleo', icon:'💼', label:'Trabajo', sub:`${dbEmpleos.length} ofertas activas`, accent:'#059669' },
+                { id:'vivienda', icon:'🏡', label:'Vivienda', sub:`${dbViviendas.length} disponibles`, accent:'#D97706' },
+                { id:'chat', icon:'🤖', label:'Chat IA', sub:'Dudas al instante', accent:'#7c3aed' },
+                { id:'tramites', icon:'📋', label:'Trámites', sub:'Arraigo y papeles', accent:'#2563EB' },
+              ].map(({ id, icon, label, sub, accent }) => (
+                <button key={id} onClick={() => setPantalla(id as Pantalla)} style={{ background:'#fff', border:'1px solid #E2E8F0', borderRadius:18, padding:'18px 16px', textAlign:'left', cursor:'pointer', fontFamily:'inherit', boxShadow:'0 1px 3px rgba(15,23,42,0.07)', position:'relative' as const, overflow:'hidden' }}>
+                  <div style={{ position:'absolute' as const, top:0, left:0, right:0, height:3, background:accent, borderRadius:'18px 18px 0 0' }} />
+                  <div style={{ fontSize:28, marginBottom:10 }}>{icon}</div>
+                  <p style={{ fontWeight:700, fontSize:14, margin:'0 0 3px', color:'#0F172A' }}>{label}</p>
+                  <p style={{ fontSize:11, color:'#94A3B8', margin:0 }}>{sub}</p>
                 </button>
               ))}
             </div>
             <div>
-              <p style={{ fontSize:13, fontWeight:700, color:'#374151', margin:'0 0 8px' }}>🧠 Herramientas con IA</p>
+              <p style={{ fontSize:12, fontWeight:700, color:'#94A3B8', margin:'0 0 8px', textTransform:'uppercase' as const, letterSpacing:'0.8px' }}>Herramientas con IA</p>
               <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
                 {[
-                  { id:'calculadora', icon:'🧮', label:'Calculadora de Arraigo', desc:'¿Puedes regularizarte ya?', color:'#fff7ed', border:'#fed7aa' },
-                  { id:'contrato', icon:'📄', label:'Analiza tu Contrato', desc:'Detecta cláusulas abusivas', color:'#f0fdf4', border:'#bbf7d0' },
-                  { id:'nomina', icon:'💰', label:'Explica tu Nómina', desc:'Entiende cada línea del recibo', color:'#eff6ff', border:'#bfdbfe' },
-                ].map(({ id, icon, label, desc, color, border }) => (
-                  <button key={id} onClick={() => setPantalla(id as Pantalla)} style={{ background:color, border:`1px solid ${border}`, borderRadius:14, padding:'12px 14px', textAlign:'left', cursor:'pointer', fontFamily:'inherit', display:'flex', gap:12, alignItems:'center' }}>
+                  { id:'calculadora', icon:'🧮', label:'Calculadora de Arraigo', desc:'¿Puedes regularizarte ya?' },
+                  { id:'contrato', icon:'📄', label:'Analiza tu Contrato', desc:'Detecta cláusulas abusivas' },
+                  { id:'nomina', icon:'💰', label:'Explica tu Nómina', desc:'Entiende cada línea del recibo' },
+                ].map(({ id, icon, label, desc }) => (
+                  <button key={id} onClick={() => setPantalla(id as Pantalla)} style={{ background:'#fff', border:'1px solid #E2E8F0', borderRadius:14, padding:'13px 14px', textAlign:'left', cursor:'pointer', fontFamily:'inherit', display:'flex', gap:12, alignItems:'center', boxShadow:'0 1px 2px rgba(15,23,42,0.04)' }}>
                     <span style={{ fontSize:22 }}>{icon}</span>
                     <div style={{ flex:1 }}>
-                      <p style={{ fontWeight:700, fontSize:14, color:'#111', margin:0 }}>{label}</p>
-                      <p style={{ fontSize:12, color:'#6b7280', margin:0 }}>{desc}</p>
+                      <p style={{ fontWeight:600, fontSize:14, color:'#0F172A', margin:0 }}>{label}</p>
+                      <p style={{ fontSize:12, color:'#64748B', margin:0 }}>{desc}</p>
                     </div>
-                    <span style={{ color:'#9ca3af', fontSize:16 }}>→</span>
+                    <span style={{ color:'#CBD5E1', fontSize:16 }}>›</span>
                   </button>
                 ))}
               </div>
@@ -944,8 +946,8 @@ export default function Home() {
 
         {pantalla === 'perfil' && (
           <div style={{ padding:16, display:'flex', flexDirection:'column', gap:16 }}>
-            <div style={{ background:'linear-gradient(135deg,#1B4FCC,#2563eb)', borderRadius:20, padding:'24px', textAlign:'center', color:'#fff' }}>
-              <div style={{ width:64, height:64, background:'rgba(255,255,255,0.2)', borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 12px', fontSize:32 }}>👤</div>
+            <div style={{ background:'linear-gradient(135deg,#1e40af,#2563EB)', borderRadius:20, padding:'24px', textAlign:'center', color:'#fff' }}>
+              <div style={{ width:64, height:64, background:'rgba(255,255,255,0.2)', borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 12px', fontSize:28, fontWeight:800 }}>{editNombre ? editNombre.trim()[0].toUpperCase() : userEmail ? userEmail[0].toUpperCase() : '?'}</div>
               <p style={{ fontWeight:800, fontSize:18, margin:'0 0 4px' }}>{editNombre || 'Mi Perfil'}</p>
               <p style={{ fontSize:13, opacity:0.8, margin:0 }}>{userEmail}</p>
             </div>
@@ -1313,17 +1315,17 @@ export default function Home() {
                 <>
                   <p style={{ fontSize:11, fontWeight:700, color:'#6b7280', textTransform:'uppercase' as const, letterSpacing:1, margin:'4px 0 0' }}>Publicadas por la comunidad</p>
                   {dbEmpleosFiltrados.map(e => (
-                    <div key={e.id} style={{ background:'#fff', border:`2px solid ${empMatchesAlerta(e)?'#0284c7':e.destacado?'#f59e0b':'#bbf7d0'}`, borderRadius:18, padding:16 }}>
+                    <div key={e.id} style={{ background:'#fff', border:`1px solid ${empMatchesAlerta(e)?'#93c5fd':e.destacado?'#fcd34d':'#E2E8F0'}`, borderRadius:16, padding:16, boxShadow:'0 1px 3px rgba(15,23,42,0.07)' }}>
                       <div style={{ display:'flex', gap:6, marginBottom:6 }}>
                         {e.destacado && <div style={{ background:'#fef3c7', borderRadius:10, padding:'4px 10px', fontSize:11, fontWeight:700, color:'#92400e' }}>⭐ Destacado</div>}
                         {empMatchesAlerta(e) && <div style={{ background:'#dbeafe', borderRadius:10, padding:'4px 10px', fontSize:11, fontWeight:700, color:'#1d4ed8' }}>🔔 Coincide con tu alerta</div>}
                       </div>
                       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:8 }}>
                         <div>
-                          <p style={{ fontWeight:800, fontSize:15, margin:'0 0 2px', color:'#111' }}>{e.empresa}</p>
-                          <p style={{ fontSize:12, color:'#6b7280', margin:0 }}>{e.sector} · {e.ciudad} · {e.jornada}</p>
+                          <p style={{ fontWeight:700, fontSize:15, margin:'0 0 3px', color:'#0F172A' }}>{e.empresa}</p>
+                          <p style={{ fontSize:12, color:'#64748B', margin:0 }}>{e.sector} · {e.ciudad} · {e.jornada}</p>
                         </div>
-                        <span style={{ fontWeight:800, color:'#065f46', fontSize:16, flexShrink:0 }}>{e.salario}<span style={{ fontSize:11, fontWeight:500 }}>/mes</span></span>
+                        <span style={{ fontWeight:700, color:'#059669', fontSize:15, flexShrink:0, background:'#F0FDF4', padding:'4px 10px', borderRadius:20 }}>{e.salario}<span style={{ fontSize:11, fontWeight:500, color:'#6b7280' }}>/mes</span></span>
                       </div>
                       <p style={{ fontSize:13, color:'#374151', margin:'0 0 10px', lineHeight:1.5 }}>{e.desc}</p>
                       <div style={{ display:'flex', gap:6, flexWrap:'wrap' as const, marginBottom:8 }}>
@@ -1399,22 +1401,23 @@ export default function Home() {
                 <>
                   <p style={{ fontSize:11, fontWeight:700, color:'#6b7280', textTransform:'uppercase' as const, letterSpacing:1, margin:'4px 0 0' }}>Publicadas por la comunidad</p>
                   {dbViviendosFiltradas.map(v => (
-                    <div key={v.id} style={{ background:'#fff', border:`2px solid ${vivMatchesAlerta(v)?'#0284c7':v.destacado?'#f59e0b':'#fde68a'}`, borderRadius:18 }}>
+                    <div key={v.id} style={{ background:'#fff', border:`1px solid ${vivMatchesAlerta(v)?'#93c5fd':v.destacado?'#fcd34d':'#E2E8F0'}`, borderRadius:16, overflow:'hidden', boxShadow:'0 1px 3px rgba(15,23,42,0.07)' }}>
                       <div style={{ display:'flex', gap:6, padding:'6px 14px 0', flexWrap:'wrap' as const }}>
                         {v.destacado && <div style={{ background:'#fef3c7', borderRadius:10, padding:'3px 10px', fontSize:11, fontWeight:700, color:'#92400e' }}>⭐ Destacado</div>}
                         {vivMatchesAlerta(v) && <div style={{ background:'#dbeafe', borderRadius:10, padding:'3px 10px', fontSize:11, fontWeight:700, color:'#1d4ed8' }}>🔔 Coincide con tu alerta</div>}
                       </div>
-                      <div style={{ background:'linear-gradient(135deg,#fef3c7,#fde68a)', padding:'16px', display:'flex', alignItems:'center', gap:12 }}>
-                        <span style={{ fontSize:36 }}>🏠</span>
-                        <div>
-                          <span style={{ fontSize:11, background:'#92400e', color:'#fff', padding:'2px 8px', borderRadius:10, fontWeight:700 }}>{v.tipo}</span>
-                          <p style={{ fontWeight:800, fontSize:15, color:'#111', margin:'4px 0 0' }}>{v.titulo}</p>
+                      <div style={{ padding:'14px 14px 0' }}>
+                        <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:8, marginBottom:8 }}>
+                          <div>
+                            <span style={{ fontSize:11, background:'#FEF3C7', color:'#92400e', padding:'3px 8px', borderRadius:20, fontWeight:700 }}>{v.tipo}</span>
+                            <p style={{ fontWeight:700, fontSize:15, color:'#0F172A', margin:'6px 0 0' }}>{v.titulo}</p>
+                          </div>
+                          <span style={{ fontWeight:700, color:'#D97706', fontSize:17, flexShrink:0, background:'#FFFBEB', padding:'4px 10px', borderRadius:20 }}>{v.precio}€<span style={{ fontSize:10, fontWeight:500, color:'#9ca3af' }}>/mes</span></span>
                         </div>
                       </div>
                       <div style={{ padding:14 }}>
-                        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
-                          <p style={{ fontSize:13, color:'#6b7280', margin:0 }}>📍 {v.barrio}, {v.ciudad}</p>
-                          <span style={{ fontWeight:800, color:'#92400e', fontSize:18 }}>{v.precio}€<span style={{ fontSize:11, fontWeight:500, color:'#6b7280' }}>/mes</span></span>
+                        <div style={{ marginBottom:8 }}>
+                          <p style={{ fontSize:12, color:'#64748B', margin:0 }}>📍 {v.barrio}, {v.ciudad}</p>
                         </div>
                         <p style={{ fontSize:13, color:'#374151', margin:'0 0 10px', lineHeight:1.5 }}>{v.desc}</p>
                         <div style={{ display:'flex', gap:6, flexWrap:'wrap' as const, marginBottom:4 }}>
@@ -2576,17 +2579,17 @@ export default function Home() {
 
       </div>
 
-      <nav style={{ position:'fixed', bottom:0, left:'50%', transform:'translateX(-50%)', width:'100%', maxWidth:480, background:'#fff', borderTop:'1px solid #e5e7eb', display:'flex', zIndex:100, paddingBottom:'env(safe-area-inset-bottom, 0px)' }}>
+      <nav style={{ position:'fixed', bottom:0, left:'50%', transform:'translateX(-50%)', width:'100%', maxWidth:480, background:'#fff', borderTop:'1px solid #E2E8F0', display:'flex', zIndex:100, paddingBottom:'env(safe-area-inset-bottom, 0px)', boxShadow:'0 -1px 10px rgba(15,23,42,0.06)' }}>
         {[
           { id:'inicio', icon:'🏠', label:'Inicio' },
           { id:'empleo', icon:'💼', label:'Trabajo' },
-          { id:'vivienda', icon:'🏠', label:'Vivienda' },
-          { id:'comunidad', icon:'👥', label:'Comunidad' },
+          { id:'vivienda', icon:'🏡', label:'Vivienda' },
+          { id:'comunidad', icon:'💬', label:'Comunidad' },
           { id:'perfil', icon:'👤', label:'Perfil' },
         ].map(({ id, icon, label }) => (
-          <button key={id} onClick={() => setPantalla(id as Pantalla)} style={{ flex:1, padding:'8px 0 6px', display:'flex', flexDirection:'column', alignItems:'center', gap:2, background:'none', border:'none', cursor:'pointer', borderTop:pantalla===id?'2px solid #1B4FCC':'2px solid transparent', fontFamily:'inherit' }}>
-            <span style={{ fontSize:18 }}>{icon}</span>
-            <span style={{ fontSize:9, fontWeight:600, color:pantalla===id?'#1B4FCC':'#9ca3af' }}>{label}</span>
+          <button key={id} onClick={() => setPantalla(id as Pantalla)} style={{ flex:1, padding:'10px 0 8px', display:'flex', flexDirection:'column', alignItems:'center', gap:3, background:'none', border:'none', cursor:'pointer', borderTop:pantalla===id?'2px solid #2563EB':'2px solid transparent', fontFamily:'inherit', transition:'all 0.15s' }}>
+            <span style={{ fontSize:19, opacity:pantalla===id?1:0.55 }}>{icon}</span>
+            <span style={{ fontSize:9, fontWeight:pantalla===id?700:500, color:pantalla===id?'#2563EB':'#64748B' }}>{label}</span>
           </button>
         ))}
       </nav>
