@@ -1069,6 +1069,10 @@ export default function Home() {
                 </p>
               </div>
             )}
+            <button onClick={logout} style={{ background:'#fff', border:'1px solid #E2E8F0', borderRadius:14, padding:'13px 16px', cursor:'pointer', fontFamily:'inherit', display:'flex', alignItems:'center', gap:12, textAlign:'left' as const, width:'100%' }}>
+              <span style={{ fontSize:20 }}>🚪</span>
+              <p style={{ fontWeight:600, fontSize:14, color:'#ef4444', margin:0 }}>Cerrar sesión</p>
+            </button>
           </div>
         )}
 
