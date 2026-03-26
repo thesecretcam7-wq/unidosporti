@@ -410,7 +410,8 @@ export default function Home() {
     setComunidadSending(true)
     const texto = comunidadMsg.trim()
     setComunidadMsg('')
-    await supabase.from('chat_comunidad').insert({ user_id:userId, user_email:userEmail, nombre:editNombre||null, mensaje:texto })
+    const { error } = await supabase.from('chat_comunidad').insert({ user_id:userId, user_email:userEmail, nombre:editNombre||null, mensaje:texto })
+    if (error) { alert('Error al enviar el mensaje: ' + error.message); setComunidadMsg(texto) }
     setComunidadSending(false)
   }
 
@@ -452,8 +453,9 @@ export default function Home() {
     setConvSending(true)
     const texto = convMsg.trim()
     setConvMsg('')
-    await supabase.from('mensajes_privados').insert({ from_user_id:userId, from_nombre:editNombre||null, from_email:userEmail, to_user_id:convActiva.user_id, to_nombre:convActiva.nombre, to_email:convActiva.email, mensaje:texto, leido:false })
-    await fetchConversacion(userId, convActiva.user_id)
+    const { error } = await supabase.from('mensajes_privados').insert({ from_user_id:userId, from_nombre:editNombre||null, from_email:userEmail, to_user_id:convActiva.user_id, to_nombre:convActiva.nombre, to_email:convActiva.email, mensaje:texto, leido:false })
+    if (error) { alert('Error al enviar el mensaje: ' + error.message); setConvMsg(texto) }
+    else await fetchConversacion(userId, convActiva.user_id)
     setConvSending(false)
   }
 
@@ -685,7 +687,7 @@ export default function Home() {
     if (pantalla === 'empleo' || pantalla === 'vivienda') fetchValoraciones()
     if (pantalla === 'ong-dashboard' || pantalla === 'ong-recursos') fetchMiOrg(userId)
     if (pantalla === 'ong-anuncios') { fetchMiOrg(userId); fetchMisAnuncios() }
-    if (pantalla === 'admin') fetchAdsPendientes()
+    if (pantalla === 'admin') { fetchAdsPendientes(); fetchPendientes() }
     if (pantalla === 'tramites') fetchRecursosPublicos()
   }, [pantalla])
 
