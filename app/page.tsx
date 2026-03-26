@@ -2581,9 +2581,9 @@ export default function Home() {
 
       <nav style={{ position:'fixed', bottom:0, left:'50%', transform:'translateX(-50%)', width:'100%', maxWidth:480, background:'#fff', borderTop:'1px solid #E2E8F0', display:'flex', zIndex:100, paddingBottom:'env(safe-area-inset-bottom, 0px)', boxShadow:'0 -1px 10px rgba(15,23,42,0.06)' }}>
         {[
-          { id:'inicio', icon:'🏠', label:'Inicio' },
+          { id:'inicio', icon:'⚡', label:'Inicio' },
           { id:'empleo', icon:'💼', label:'Trabajo' },
-          { id:'vivienda', icon:'🏡', label:'Vivienda' },
+          { id:'vivienda', icon:'🏠', label:'Vivienda' },
           { id:'comunidad', icon:'💬', label:'Comunidad' },
           { id:'perfil', icon:'👤', label:'Perfil' },
         ].map(({ id, icon, label }) => (
