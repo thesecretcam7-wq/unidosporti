@@ -18,35 +18,6 @@ const RUTAS = {
   arraigo_familiar: { nombre: 'Arraigo Familiar', tiempo: '2-4 meses', docs: ['Familiar directo español o residente legal', 'Certificado de parentesco apostillado', 'Sin antecedentes penales', 'Solicitar cita en extranjería'] },
 } as const
 
-const EMPLEOS = [
-  { id:1, empresa:'Fincas del Sur', sector:'Agricultura', ciudad:'Murcia', salario:'1.250€', jornada:'Completa', arraigo:true, precontrato:true, nie:true, desc:'Se buscan recolectores de fruta. No se requiere experiencia previa.' },
-  { id:2, empresa:'Reformas Madrid Centro', sector:'Construcción', ciudad:'Madrid', salario:'1.600€', jornada:'Completa', arraigo:true, precontrato:true, nie:false, desc:'Peones y oficiales de albañilería. Formación a cargo de la empresa.' },
-  { id:3, empresa:'Hostal Mediterráneo', sector:'Hostelería', ciudad:'Valencia', salario:'1.100€', jornada:'Parcial', arraigo:true, precontrato:true, nie:true, desc:'Camareros y personal de cocina. Turno de mañana y tarde disponible.' },
-  { id:4, empresa:'Limpieza Express BCN', sector:'Limpieza', ciudad:'Barcelona', salario:'950€', jornada:'Parcial', arraigo:true, precontrato:false, nie:true, desc:'Personal de limpieza para hoteles y oficinas. Horario flexible.' },
-  { id:5, empresa:'LogiTrans Levante', sector:'Logística', ciudad:'Alicante', salario:'1.400€', jornada:'Completa', arraigo:false, precontrato:true, nie:false, desc:'Mozos de almacén y preparación de pedidos. Turno rotativo.' },
-  { id:6, empresa:'Cuidados del Hogar SL', sector:'Cuidados', ciudad:'Sevilla', salario:'1.050€', jornada:'Completa', arraigo:true, precontrato:true, nie:true, desc:'Cuidadores de personas mayores con experiencia. Alojamiento incluido.' },
-  { id:7, empresa:'Carrefour Zaragoza', sector:'Comercio', ciudad:'Zaragoza', salario:'1.200€', jornada:'Parcial', arraigo:true, precontrato:true, nie:true, desc:'Reponedores y cajeros para supermercado. Turnos rotativos.' },
-  { id:8, empresa:'Cruz Roja - Proyecto Acogida', sector:'ONGs', ciudad:'Madrid', salario:'1.300€', jornada:'Completa', arraigo:true, precontrato:true, nie:true, desc:'Trabajador/a social para programas de integración de migrantes.' },
-  { id:9, empresa:'Hotel Barceló Costa Brava', sector:'Hostelería', ciudad:'Girona', salario:'1.350€', jornada:'Completa', arraigo:true, precontrato:true, nie:false, desc:'Personal de pisos, recepción y restaurante. Temporada alta completa.' },
-  { id:10, empresa:'FreshFarm Huelva', sector:'Agricultura', ciudad:'Huelva', salario:'1.150€', jornada:'Completa', arraigo:true, precontrato:true, nie:true, desc:'Recolección de fresas. Alojamiento disponible. Contrato de temporada.' },
-  { id:11, empresa:'Construcciones Ruiz e Hijos', sector:'Construcción', ciudad:'Málaga', salario:'1.500€', jornada:'Completa', arraigo:true, precontrato:true, nie:false, desc:'Encofrador y oficiales de 1ª y 2ª. Obra en marcha todo el año.' },
-  { id:12, empresa:'TeleMarketing Express', sector:'Servicios', ciudad:'Barcelona', salario:'1.050€', jornada:'Parcial', arraigo:true, precontrato:false, nie:true, desc:'Agentes de atención al cliente. Formación incluida. Idiomas valorados.' },
-]
-
-const VIVIENDAS = [
-  { id:1, tipo:'Habitación', titulo:'Habitación en piso compartido', ciudad:'Madrid', barrio:'Vallecas', precio:350, fianza:1, sinNomina:true, extranjeros:true, m2:12, img:'🏠', desc:'Piso de 4 personas, cocina equipada, wifi incluido. Ambiente multicultural.' },
-  { id:2, tipo:'Piso', titulo:'Estudio amueblado', ciudad:'Barcelona', barrio:'Nou Barris', precio:650, fianza:1, sinNomina:true, extranjeros:true, m2:35, img:'🏢', desc:'Estudio totalmente equipado. Aceptamos aval solidario en lugar de nómina.' },
-  { id:3, tipo:'Habitación', titulo:'Habitación individual luminosa', ciudad:'Valencia', barrio:'Ruzafa', precio:280, fianza:1, sinNomina:true, extranjeros:true, m2:10, img:'🏠', desc:'Piso moderno. Se valora convivencia. Gastos incluidos.' },
-  { id:4, tipo:'Piso', titulo:'Piso 2 habitaciones', ciudad:'Murcia', barrio:'Centro', precio:550, fianza:2, sinNomina:false, extranjeros:true, m2:65, img:'🏡', desc:'Piso céntrico bien comunicado. Se pide nómina o aval bancario.' },
-  { id:5, tipo:'Habitación', titulo:'Habitación en casa familiar', ciudad:'Sevilla', barrio:'Triana', precio:300, fianza:1, sinNomina:true, extranjeros:true, m2:14, img:'🏘️', desc:'Casa familiar, ambiente tranquilo. Incluye desayuno. Ideal recién llegados.' },
-  { id:6, tipo:'Piso', titulo:'Apartamento completo', ciudad:'Bilbao', barrio:'Deusto', precio:720, fianza:2, sinNomina:false, extranjeros:true, m2:55, img:'🏢', desc:'Apartamento moderno, garaje incluido. Aceptamos contratos temporales.' },
-  { id:7, tipo:'Habitación', titulo:'Habitación acogedora con terraza', ciudad:'Madrid', barrio:'Carabanchel', precio:320, fianza:1, sinNomina:true, extranjeros:true, m2:11, img:'🏠', desc:'Terraza compartida, muy luminosa. Cerca del metro. Sin discriminación.' },
-  { id:8, tipo:'Piso', titulo:'Piso entero pequeño', ciudad:'Zaragoza', barrio:'Las Fuentes', precio:480, fianza:1, sinNomina:true, extranjeros:true, m2:42, img:'🏢', desc:'Piso pequeño pero completo para una persona o pareja. Muy tranquilo.' },
-  { id:9, tipo:'Habitación', titulo:'Habitación amplia con baño propio', ciudad:'Málaga', barrio:'Centro Histórico', precio:400, fianza:1, sinNomina:true, extranjeros:true, m2:18, img:'🏠', desc:'Baño privado incluido. Cocina equipada. Wi-Fi de alta velocidad.' },
-  { id:10, tipo:'Piso', titulo:'Piso cerca de la playa', ciudad:'Valencia', barrio:'Nazaret', precio:600, fianza:1, sinNomina:true, extranjeros:true, m2:50, img:'🏡', desc:'A 10 minutos de la playa. Aceptamos extranjeros sin contrato indefinido.' },
-  { id:11, tipo:'Habitación', titulo:'Habitación en piso internacional', ciudad:'Barcelona', barrio:'Hospitalet', precio:380, fianza:1, sinNomina:true, extranjeros:true, m2:13, img:'🏠', desc:'Piso de trabajadores internacionales. Muy buen ambiente multicultural.' },
-  { id:12, tipo:'Piso', titulo:'Estudio con facturas incluidas', ciudad:'Alicante', barrio:'San Blas', precio:550, fianza:1, sinNomina:true, extranjeros:true, m2:38, img:'🏢', desc:'Luz, agua y gas incluidos. Sin sorpresas. Aceptamos NIE en trámite.' },
-]
 
 const NOTIFICACIONES_INIT = [
   { id:1, icono:'💼', titulo:'Nueva oferta en Madrid', desc:'Reformas Madrid Centro busca albañiles — 1.600€/mes, firma precontrato', tiempo:'Hace 2h', leida:false },
@@ -779,20 +750,6 @@ export default function Home() {
     setCalcResult({ tipo:'Sin arraigo inmediato', prob:15, color:'red', pasos:['Empadrónate cuanto antes','Busca trabajo con empresa que firme precontrato','Contacta con una ONG para apoyo y asesoría'] })
   }
 
-  const empleosFiltrados = EMPLEOS.filter(e => {
-    const q = busqEmp.toLowerCase()
-    return (!q || e.empresa.toLowerCase().includes(q) || e.sector.toLowerCase().includes(q) || e.ciudad.toLowerCase().includes(q))
-      && (sectorFilt==='Todos'||e.sector===sectorFilt) && (ciudadEmpFilt==='Todas'||e.ciudad===ciudadEmpFilt)
-      && (!soloArraigo||e.arraigo) && (!soloPrecontrato||e.precontrato)
-  })
-
-  const viviendasFiltradas = VIVIENDAS.filter(v => {
-    const q = busqViv.toLowerCase()
-    return (!q || v.titulo.toLowerCase().includes(q) || v.ciudad.toLowerCase().includes(q) || v.barrio.toLowerCase().includes(q))
-      && (ciudadVivFilt==='Todas'||v.ciudad===ciudadVivFilt) && (tipoVivFilt==='Todos'||v.tipo===tipoVivFilt)
-      && (!soloSinNomina||v.sinNomina) && v.precio<=precioMax
-  })
-
   const dbEmpleosFiltrados = [...dbEmpleos].sort((a,b) => (b.destacado?1:0)-(a.destacado?1:0)).filter(e => {
     const q = busqEmp.toLowerCase()
     return (!q || e.empresa.toLowerCase().includes(q) || e.sector.toLowerCase().includes(q) || e.ciudad.toLowerCase().includes(q))
@@ -888,7 +845,7 @@ export default function Home() {
 
   return (
     <div style={wrap}>
-      <header style={{ background:'#fff', borderBottom:'1px solid #e5e7eb', padding:'10px 16px', display:'flex', alignItems:'center', justifyContent:'space-between', flexShrink:0 }}>
+      <header style={{ background:'#fff', borderBottom:'1px solid #e5e7eb', padding:'10px 16px', paddingTop:'calc(10px + env(safe-area-inset-top, 0px))', display:'flex', alignItems:'center', justifyContent:'space-between', flexShrink:0 }}>
         <div style={{ display:'flex', alignItems:'center', gap:8 }}>
           <img src="/logo.png" alt="UnidosPorTi" style={{ width:56, height:56, objectFit:'contain' }} />
         </div>
@@ -912,7 +869,7 @@ export default function Home() {
         </div>
       </header>
 
-      <div style={{ flex:1, overflowY:'auto', paddingBottom:72 }}>
+      <div style={{ flex:1, overflowY:'auto', paddingBottom:'calc(72px + env(safe-area-inset-bottom, 0px))' }}>
 
         {pantalla === 'inicio' && (
           <div style={{ padding:16, display:'flex', flexDirection:'column', gap:14 }}>
@@ -2595,7 +2552,7 @@ export default function Home() {
 
       </div>
 
-      <nav style={{ position:'fixed', bottom:0, left:'50%', transform:'translateX(-50%)', width:'100%', maxWidth:480, background:'#fff', borderTop:'1px solid #e5e7eb', display:'flex', zIndex:100 }}>
+      <nav style={{ position:'fixed', bottom:0, left:'50%', transform:'translateX(-50%)', width:'100%', maxWidth:480, background:'#fff', borderTop:'1px solid #e5e7eb', display:'flex', zIndex:100, paddingBottom:'env(safe-area-inset-bottom, 0px)' }}>
         {[
           { id:'inicio', icon:'🏠', label:'Inicio' },
           { id:'empleo', icon:'💼', label:'Trabajo' },
