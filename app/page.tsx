@@ -1810,7 +1810,10 @@ export default function Home() {
                       </span>
                     </div>
                     <p style={{ fontSize:12, color:'#374151', margin:'0 0 10px', lineHeight:1.4 }}>{e.desc}</p>
-                    <button onClick={() => deleteMiEmpleo(e.id)} style={{ width:'100%', background:'#fee2e2', color:'#991b1b', border:'none', borderRadius:10, padding:'8px 0', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>Eliminar</button>
+                    <div style={{ display:'flex', gap:8 }}>
+                      <button onClick={() => setPantalla('empleo')} style={{ flex:1, background:'#eff6ff', color:'#1d4ed8', border:'1px solid #bfdbfe', borderRadius:10, padding:'8px 0', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>Ver publicación →</button>
+                      <button onClick={() => deleteMiEmpleo(e.id)} style={{ flex:1, background:'#fee2e2', color:'#991b1b', border:'none', borderRadius:10, padding:'8px 0', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>Eliminar</button>
+                    </div>
                   </div>
                 ))}
               </>
@@ -1830,7 +1833,10 @@ export default function Home() {
                       </span>
                     </div>
                     <p style={{ fontSize:12, color:'#374151', margin:'0 0 10px', lineHeight:1.4 }}>{v.desc}</p>
-                    <button onClick={() => deleteMiVivienda(v.id)} style={{ width:'100%', background:'#fee2e2', color:'#991b1b', border:'none', borderRadius:10, padding:'8px 0', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>Eliminar</button>
+                    <div style={{ display:'flex', gap:8 }}>
+                      <button onClick={() => setPantalla('vivienda')} style={{ flex:1, background:'#fffbeb', color:'#92400e', border:'1px solid #fde68a', borderRadius:10, padding:'8px 0', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>Ver publicación →</button>
+                      <button onClick={() => deleteMiVivienda(v.id)} style={{ flex:1, background:'#fee2e2', color:'#991b1b', border:'none', borderRadius:10, padding:'8px 0', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>Eliminar</button>
+                    </div>
                   </div>
                 ))}
               </>
