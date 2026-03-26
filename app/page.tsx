@@ -19,13 +19,7 @@ const RUTAS = {
 } as const
 
 
-const NOTIFICACIONES_INIT = [
-  { id:1, icono:'💼', titulo:'Nueva oferta en Madrid', desc:'Reformas Madrid Centro busca albañiles — 1.600€/mes, firma precontrato', tiempo:'Hace 2h', leida:false },
-  { id:2, icono:'⚖️', titulo:'Cambio legal importante', desc:'Nuevo decreto facilita el arraigo laboral desde enero 2026', tiempo:'Hace 5h', leida:false },
-  { id:3, icono:'🏠', titulo:'Nuevo piso disponible', desc:'Habitación en Madrid, Carabanchel — 320€/mes sin nómina', tiempo:'Hace 1d', leida:false },
-  { id:4, icono:'📅', titulo:'Recuerda tu cita', desc:'Tienes una cita en extranjería el próximo lunes', tiempo:'Hace 2d', leida:true },
-  { id:5, icono:'ℹ️', titulo:'Guía actualizada', desc:'Hemos actualizado la guía de apertura de cuenta bancaria para migrantes', tiempo:'Hace 3d', leida:true },
-]
+const NOTIFICACIONES_INIT: { id:number; icono:string; titulo:string; desc:string; tiempo:string; leida:boolean }[] = []
 
 const SECTORES = ['Todos','Agricultura','Construcción','Hostelería','Limpieza','Logística','Cuidados','Comercio','ONGs','Servicios']
 const CIUDADES_EMP = ['Todas','Madrid','Barcelona','Valencia','Murcia','Alicante','Sevilla','Zaragoza','Girona','Huelva','Málaga']
