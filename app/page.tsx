@@ -392,8 +392,22 @@ export default function Home() {
       setTimeout(() => comunidadBottomRef.current?.scrollIntoView({ behavior:'smooth' }), 100)
     })
     channel = supabase.channel('chat_comunidad_rt').on('postgres_changes' as any, { event:'INSERT', schema:'public', table:'chat_comunidad' }, (payload: any) => {
-      setComunidadMsgs(prev => [...prev, payload.new as ChatMsg])
+      const newMsg = payload.new as ChatMsg
+      setComunidadMsgs(prev => [...prev, newMsg])
       setTimeout(() => comunidadBottomRef.current?.scrollIntoView({ behavior:'smooth' }), 50)
+      if (newMsg.user_id !== userId) {
+        try {
+          const ctx = new (window.AudioContext || (window as any).webkitAudioContext)()
+          const o = ctx.createOscillator()
+          const g = ctx.createGain()
+          o.connect(g); g.connect(ctx.destination)
+          o.frequency.setValueAtTime(880, ctx.currentTime)
+          o.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.15)
+          g.gain.setValueAtTime(0.3, ctx.currentTime)
+          g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25)
+          o.start(ctx.currentTime); o.stop(ctx.currentTime + 0.25)
+        } catch {}
+      }
     }).subscribe()
     return () => { if (channel) supabase.removeChannel(channel) }
   }, [pantalla])
