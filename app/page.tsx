@@ -371,7 +371,11 @@ export default function Home() {
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) return
     const r = await fetch('/api/admin/pending', { headers: { authorization: `Bearer ${session.access_token}` } })
-    if (!r.ok) return
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}))
+      alert(`Error al cargar pendientes (${r.status}): ${err.error || 'Sin detalle'}`)
+      return
+    }
     const d = await r.json()
     setPendienteEmpleos(d.empleos ?? [])
     setPendienteViviendas(d.viviendas ?? [])
@@ -919,8 +923,8 @@ export default function Home() {
             </div>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
               {[
-                { id:'empleo', icon:'💼', label:'Trabajo', sub:`${EMPLEOS.length} ofertas activas`, color:'#f0fdf4', border:'#bbf7d0', badge:'Nuevo' },
-                { id:'vivienda', icon:'🏠', label:'Vivienda', sub:`${VIVIENDAS.length} opciones`, color:'#fefce8', border:'#fde68a', badge:'Nuevo' },
+                { id:'empleo', icon:'💼', label:'Trabajo', sub:`${dbEmpleos.length} ofertas activas`, color:'#f0fdf4', border:'#bbf7d0', badge:'Nuevo' },
+                { id:'vivienda', icon:'🏠', label:'Vivienda', sub:`${dbViviendas.length} opciones`, color:'#fefce8', border:'#fde68a', badge:'Nuevo' },
                 { id:'chat', icon:'🤖', label:'Chat IA', sub:'Dudas al instante', color:'#eff6ff', border:'#bfdbfe', badge:'' },
                 { id:'tramites', icon:'📋', label:'Trámites', sub:'Arraigo y papeles', color:'#fdf4ff', border:'#e9d5ff', badge:'' },
               ].map(({ id, icon, label, sub, color, border, badge }) => (
@@ -1318,7 +1322,7 @@ export default function Home() {
             </div>
             <div style={{ flex:1, overflowY:'auto', padding:'12px 14px', display:'flex', flexDirection:'column', gap:12 }}>
               <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                <p style={{ fontSize:12, color:'#6b7280', margin:0 }}>{empleosFiltrados.length + dbEmpleosFiltrados.length} ofertas encontradas</p>
+                <p style={{ fontSize:12, color:'#6b7280', margin:0 }}>{dbEmpleosFiltrados.length} ofertas encontradas</p>
                 <div style={{ display:'flex', gap:6 }}>
                   <button onClick={() => setPantalla('alertas')} style={{ background: alertasMatchEmp>0?'#dbeafe':'#f0fdf4', color: alertasMatchEmp>0?'#1d4ed8':'#065f46', border:'none', borderRadius:20, padding:'6px 12px', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
                     🔔{alertas.filter(a=>a.tipo==='empleo').length > 0 ? ` ${alertas.filter(a=>a.tipo==='empleo').length}` : ''}
@@ -1326,27 +1330,7 @@ export default function Home() {
                   <button onClick={() => setPantalla('publicar-empleo')} style={{ background:'#065f46', color:'#fff', border:'none', borderRadius:20, padding:'6px 14px', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>+ Publicar</button>
                 </div>
               </div>
-              {empleosFiltrados.length === 0 && dbEmpleosFiltrados.length === 0 && <div style={{ textAlign:'center', padding:'40px 20px' }}><p style={{ fontSize:32 }}>🔍</p><p style={{ color:'#6b7280', fontSize:14 }}>No hay ofertas con esos filtros</p></div>}
-              {empleosFiltrados.map(e => (
-                <div key={e.id} style={{ background:'#fff', border:'1px solid #e5e7eb', borderRadius:18, padding:16, boxShadow:'0 1px 4px rgba(0,0,0,0.06)' }}>
-                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:8 }}>
-                    <div>
-                      <p style={{ fontWeight:800, fontSize:15, margin:'0 0 2px', color:'#111' }}>{e.empresa}</p>
-                      <p style={{ fontSize:12, color:'#6b7280', margin:0 }}>{e.sector} · {e.ciudad} · {e.jornada}</p>
-                    </div>
-                    <span style={{ fontWeight:800, color:'#065f46', fontSize:16, flexShrink:0 }}>{e.salario}<span style={{ fontSize:11, fontWeight:500 }}>/mes</span></span>
-                  </div>
-                  <p style={{ fontSize:13, color:'#374151', margin:'0 0 10px', lineHeight:1.5 }}>{e.desc}</p>
-                  <div style={{ display:'flex', gap:6, flexWrap:'wrap' as const, marginBottom:12 }}>
-                    {e.arraigo && <Badge text="✓ Acepta arraigo" color="green" />}
-                    {e.precontrato && <Badge text="✓ Firma precontrato" color="blue" />}
-                    {e.nie && <Badge text="✓ NIE en trámite OK" color="orange" />}
-                  </div>
-                  <button onClick={() => { setMsg(`Quiero información sobre la oferta de ${e.empresa} en ${e.ciudad}, sector ${e.sector}`); setPantalla('chat') }} style={{ ...btn, background:'#065f46', fontSize:13, padding:'10px 0' }}>
-                    Consultar por esta oferta →
-                  </button>
-                </div>
-              ))}
+              {dbEmpleosFiltrados.length === 0 && <div style={{ textAlign:'center', padding:'40px 20px' }}><p style={{ fontSize:32 }}>🔍</p><p style={{ color:'#6b7280', fontSize:14 }}>No hay ofertas publicadas aún. ¡Sé el primero en publicar!</p></div>}
               {anunciosNativos.filter(a => a.tipo_pantalla === 'empleo' || a.tipo_pantalla === 'todas').map(ad => (
                 <div key={ad.id} style={{ border:'1px solid #93c5fd', borderRadius:16, overflow:'hidden' }}>
                   {ad.imagen_url && <img src={ad.imagen_url} alt={ad.titulo} style={{ width:'100%', maxHeight:160, objectFit:'cover', display:'block' }} />}
@@ -1424,7 +1408,7 @@ export default function Home() {
             </div>
             <div style={{ flex:1, overflowY:'auto', padding:'12px 14px', display:'flex', flexDirection:'column', gap:12 }}>
               <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                <p style={{ fontSize:12, color:'#6b7280', margin:0 }}>{viviendasFiltradas.length + dbViviendosFiltradas.length} viviendas encontradas</p>
+                <p style={{ fontSize:12, color:'#6b7280', margin:0 }}>{dbViviendosFiltradas.length} viviendas encontradas</p>
                 <div style={{ display:'flex', gap:6 }}>
                   <button onClick={() => setPantalla('alertas')} style={{ background: alertasMatchViv>0?'#dbeafe':'#fffbeb', color: alertasMatchViv>0?'#1d4ed8':'#92400e', border:'none', borderRadius:20, padding:'6px 12px', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
                     🔔{alertas.filter(a=>a.tipo==='vivienda').length > 0 ? ` ${alertas.filter(a=>a.tipo==='vivienda').length}` : ''}
@@ -1432,34 +1416,7 @@ export default function Home() {
                   <button onClick={() => setPantalla('publicar-vivienda')} style={{ background:'#d97706', color:'#fff', border:'none', borderRadius:20, padding:'6px 14px', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>+ Publicar</button>
                 </div>
               </div>
-              {viviendasFiltradas.length === 0 && dbViviendosFiltradas.length === 0 && <div style={{ textAlign:'center', padding:'40px 20px' }}><p style={{ fontSize:32 }}>🔍</p><p style={{ color:'#6b7280', fontSize:14 }}>No hay viviendas con esos filtros</p></div>}
-              {viviendasFiltradas.map(v => (
-                <div key={v.id} style={{ background:'#fff', border:'1px solid #e5e7eb', borderRadius:18, boxShadow:'0 1px 4px rgba(0,0,0,0.06)' }}>
-                  <div style={{ background:'linear-gradient(135deg,#fef3c7,#fde68a)', padding:'16px', display:'flex', alignItems:'center', gap:12 }}>
-                    <span style={{ fontSize:36 }}>{v.img}</span>
-                    <div>
-                      <span style={{ fontSize:11, background:'#92400e', color:'#fff', padding:'2px 8px', borderRadius:10, fontWeight:700 }}>{v.tipo}</span>
-                      <p style={{ fontWeight:800, fontSize:15, color:'#111', margin:'4px 0 0' }}>{v.titulo}</p>
-                    </div>
-                  </div>
-                  <div style={{ padding:14 }}>
-                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
-                      <p style={{ fontSize:13, color:'#6b7280', margin:0 }}>📍 {v.barrio}, {v.ciudad}</p>
-                      <span style={{ fontWeight:800, color:'#92400e', fontSize:18 }}>{v.precio}€<span style={{ fontSize:11, fontWeight:500, color:'#6b7280' }}>/mes</span></span>
-                    </div>
-                    <p style={{ fontSize:13, color:'#374151', margin:'0 0 10px', lineHeight:1.5 }}>{v.desc}</p>
-                    <div style={{ display:'flex', gap:6, flexWrap:'wrap' as const, marginBottom:12 }}>
-                      {v.sinNomina && <Badge text="✓ Sin nómina" color="green" />}
-                      {v.extranjeros && <Badge text="✓ Acepta extranjeros" color="blue" />}
-                      <Badge text={`Fianza: ${v.fianza} mes`} color="gray" />
-                      <Badge text={`${v.m2}m²`} color="gray" />
-                    </div>
-                    <button onClick={() => { setMsg(`Me interesa la vivienda "${v.titulo}" en ${v.barrio}, ${v.ciudad} por ${v.precio}€/mes`); setPantalla('chat') }} style={{ ...btn, background:'#d97706', fontSize:13, padding:'10px 0' }}>
-                      Consultar disponibilidad →
-                    </button>
-                  </div>
-                </div>
-              ))}
+              {dbViviendosFiltradas.length === 0 && <div style={{ textAlign:'center', padding:'40px 20px' }}><p style={{ fontSize:32 }}>🔍</p><p style={{ color:'#6b7280', fontSize:14 }}>No hay viviendas publicadas aún. ¡Sé el primero en publicar!</p></div>}
               {anunciosNativos.filter(a => a.tipo_pantalla === 'vivienda' || a.tipo_pantalla === 'todas').map(ad => (
                 <div key={ad.id} style={{ border:'1px solid #fcd34d', borderRadius:16, overflow:'hidden' }}>
                   {ad.imagen_url && <img src={ad.imagen_url} alt={ad.titulo} style={{ width:'100%', maxHeight:160, objectFit:'cover', display:'block' }} />}
