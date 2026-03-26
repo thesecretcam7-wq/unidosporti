@@ -1753,60 +1753,74 @@ export default function Home() {
         )}
 
         {pantalla === 'comunidad' && (
-          <div style={{ display:'flex', flexDirection:'column', height:'100%' }}>
-            <div style={{ background:'linear-gradient(135deg,#6d28d9,#7c3aed)', padding:'14px 16px 10px', flexShrink:0 }}>
-              <h2 style={{ color:'#fff', fontSize:18, fontWeight:800, margin:'0 0 2px' }}>👥 Chat Comunidad</h2>
-              <p style={{ color:'rgba(255,255,255,0.8)', fontSize:12, margin:0 }}>Conéctate con otros migrantes en España</p>
+          <div style={{ display:'flex', flexDirection:'column', height:'100%', background:'#0a0a1a' }}>
+            {/* Header estilo LatinChat */}
+            <div style={{ background:'linear-gradient(180deg,#1a1a6e 0%,#0d0d4d 100%)', borderBottom:'2px solid #ffcc00', padding:'8px 12px', flexShrink:0 }}>
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                  <span style={{ fontSize:18 }}>💬</span>
+                  <div>
+                    <p style={{ color:'#ffcc00', fontSize:15, fontWeight:900, margin:0, letterSpacing:1, textShadow:'0 0 8px #ffcc00' }}>LatinChat</p>
+                    <p style={{ color:'#aac4ff', fontSize:11, margin:0 }}>Sala: Migrantes en España · {comunidadMsgs.length > 0 ? `${new Set(comunidadMsgs.map(m=>m.user_id)).size} usuarios` : '0 usuarios'}</p>
+                  </div>
+                </div>
+                <div style={{ display:'flex', gap:6, alignItems:'center' }}>
+                  <div style={{ width:8, height:8, background:'#00ff00', borderRadius:'50%', boxShadow:'0 0 6px #00ff00' }} />
+                  <span style={{ color:'#00ff00', fontSize:11, fontWeight:700 }}>EN LÍNEA</span>
+                </div>
+              </div>
             </div>
-            <div style={{ flex:1, overflowY:'auto', padding:'12px 14px', display:'flex', flexDirection:'column', gap:10 }}>
+
+            {/* Área de mensajes estilo terminal */}
+            <div style={{ flex:1, overflowY:'auto', padding:'8px 10px', display:'flex', flexDirection:'column', gap:1, fontFamily:'monospace' }}>
               {comunidadMsgs.length === 0 && (
-                <div style={{ textAlign:'center', paddingTop:40 }}>
-                  <p style={{ fontSize:40, margin:'0 0 8px' }}>👋</p>
-                  <p style={{ fontWeight:700, fontSize:16, color:'#111', margin:'0 0 4px' }}>¡Sé el primero en saludar!</p>
-                  <p style={{ fontSize:13, color:'#6b7280', margin:0 }}>Este es el espacio para conocer personas, compartir experiencias y apoyarse</p>
+                <div style={{ paddingTop:20 }}>
+                  <p style={{ color:'#555', fontSize:12, fontFamily:'monospace', margin:'0 0 4px' }}>*** Bienvenido a la sala "Migrantes en España" ***</p>
+                  <p style={{ color:'#555', fontSize:12, fontFamily:'monospace', margin:'0 0 4px' }}>*** Sé el primero en escribir! ***</p>
+                  <p style={{ color:'#226600', fontSize:12, fontFamily:'monospace', margin:0 }}>» Escribe tu primer mensaje abajo...</p>
                 </div>
               )}
-              {comunidadMsgs.map((m, i) => {
-                const esMio = m.user_id === userId
+              {comunidadMsgs.map((m) => {
                 const nombre = m.nombre || m.user_email.split('@')[0]
-                const inicial = nombre.charAt(0).toUpperCase()
-                const mismoAnterior = i > 0 && comunidadMsgs[i-1].user_id === m.user_id
+                const esMio = m.user_id === userId
+                const hora = new Date(m.created_at).toLocaleTimeString('es-ES', { hour:'2-digit', minute:'2-digit' })
+                // Colores de nick estilo LatinChat (determinista según nombre)
+                const nickColors = ['#ff9900','#00ccff','#ff66cc','#66ff66','#ff6666','#ffff00','#ff99cc','#99ffcc','#cc99ff','#ffcc66']
+                const nickColor = esMio ? '#ffcc00' : nickColors[nombre.charCodeAt(0) % nickColors.length]
                 return (
-                  <div key={m.id} style={{ display:'flex', flexDirection:esMio?'row-reverse':'row', gap:8, alignItems:'flex-end' }}>
-                    {!esMio && (
-                      <div style={{ width:32, height:32, minWidth:32, background:mismoAnterior?'transparent':'#ede9fe', borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, fontWeight:700, color:'#6d28d9' }}>
-                        {mismoAnterior ? '' : inicial}
-                      </div>
-                    )}
-                    <div style={{ maxWidth:'72%' }}>
-                      {!esMio && !mismoAnterior && (
-                        <div style={{ display:'flex', alignItems:'center', gap:8, margin:'0 0 3px 4px' }}>
-                          <p style={{ fontSize:11, fontWeight:700, color:'#6d28d9', margin:0 }}>{nombre}</p>
-                          <button onClick={() => abrirConversacion({ user_id:m.user_id, nombre, email:m.user_email })} style={{ fontSize:10, color:'#6d28d9', background:'#ede9fe', border:'none', borderRadius:10, padding:'2px 7px', cursor:'pointer', fontFamily:'inherit', fontWeight:600 }}>✉ Mensaje</button>
-                        </div>
-                      )}
-                      <div style={{ background:esMio?'#7c3aed':'#fff', color:esMio?'#fff':'#111', borderRadius:esMio?'18px 18px 4px 18px':'18px 18px 18px 4px', padding:'10px 14px', fontSize:14, lineHeight:1.5, border:esMio?'none':'1px solid #e5e7eb', wordBreak:'break-word' as const }}>
-                        {m.mensaje}
-                      </div>
-                      <p style={{ fontSize:10, color:'#9ca3af', margin:'3px 4px 0', textAlign:esMio?'right':'left' }}>
-                        {new Date(m.created_at).toLocaleTimeString('es-ES', { hour:'2-digit', minute:'2-digit' })}
-                      </p>
-                    </div>
+                  <div key={m.id} style={{ display:'flex', alignItems:'flex-start', gap:0, lineHeight:1.6 }}>
+                    <span style={{ color:'#555', fontSize:11, flexShrink:0, marginRight:6, fontFamily:'monospace' }}>[{hora}]</span>
+                    <span
+                      style={{ color:nickColor, fontWeight:700, fontSize:13, flexShrink:0, marginRight:2, fontFamily:'monospace', cursor: esMio ? 'default' : 'pointer', textDecoration: esMio ? 'none' : 'underline' }}
+                      onClick={() => !esMio && abrirConversacion({ user_id:m.user_id, nombre, email:m.user_email })}
+                      title={esMio ? '' : `Enviar mensaje privado a ${nombre}`}
+                    >{nombre}</span>
+                    <span style={{ color:'#aaa', fontSize:13, marginRight:4, fontFamily:'monospace' }}>:</span>
+                    <span style={{ color: esMio ? '#ffffff' : '#d4e8ff', fontSize:13, fontFamily:'monospace', wordBreak:'break-word' as const, flex:1 }}>{m.mensaje}</span>
                   </div>
                 )
               })}
               <div ref={comunidadBottomRef} />
             </div>
-            <div style={{ padding:'10px 14px', background:'#fff', borderTop:'1px solid #e5e7eb', flexShrink:0 }}>
-              <div style={{ display:'flex', gap:8, alignItems:'flex-end' }}>
+
+            {/* Barra de entrada estilo LatinChat */}
+            <div style={{ background:'#0d0d4d', borderTop:'2px solid #333399', padding:'8px 10px', flexShrink:0 }}>
+              <div style={{ display:'flex', gap:6, alignItems:'center' }}>
+                <span style={{ color:'#ffcc00', fontSize:12, fontWeight:700, fontFamily:'monospace', flexShrink:0 }}>{editNombre ? editNombre.split(' ')[0] : 'Tú'}:</span>
                 <input
                   value={comunidadMsg}
                   onChange={e => setComunidadMsg(e.target.value)}
                   onKeyDown={e => e.key==='Enter' && !e.shiftKey && sendComunidad()}
-                  placeholder="Escribe un mensaje..."
-                  style={{ flex:1, border:'1px solid #d1d5db', borderRadius:24, padding:'10px 16px', fontSize:14, outline:'none', fontFamily:'inherit' }}
+                  placeholder="Escribe aquí y presiona Enter..."
+                  style={{ flex:1, background:'#000033', border:'1px solid #333399', borderRadius:0, padding:'7px 10px', fontSize:13, outline:'none', fontFamily:'monospace', color:'#ffffff', caretColor:'#ffcc00' }}
                 />
-                <button onClick={sendComunidad} disabled={comunidadSending || !comunidadMsg.trim()} style={{ width:44, height:44, background:'#7c3aed', border:'none', borderRadius:'50%', color:'#fff', fontSize:18, cursor:'pointer', flexShrink:0, opacity:(comunidadSending||!comunidadMsg.trim())?0.5:1 }}>➤</button>
+                <button
+                  onClick={sendComunidad}
+                  disabled={comunidadSending || !comunidadMsg.trim()}
+                  style={{ background:'#333399', border:'1px solid #6666cc', color:'#ffcc00', fontWeight:700, fontSize:12, padding:'7px 14px', cursor:'pointer', fontFamily:'monospace', opacity:(comunidadSending||!comunidadMsg.trim())?0.4:1, flexShrink:0 }}
+                >
+                  ENVIAR
+                </button>
               </div>
             </div>
           </div>
