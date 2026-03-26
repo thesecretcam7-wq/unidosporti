@@ -1006,6 +1006,22 @@ export default function Home() {
               </div>
               <span style={{ color:'#9ca3af' }}>→</span>
             </button>
+            <button onClick={() => setPantalla('tramites')} style={{ background:'#faf5ff', border:'1px solid #e9d5ff', borderRadius:14, padding:'14px 16px', cursor:'pointer', fontFamily:'inherit', display:'flex', alignItems:'center', gap:12, textAlign:'left' as const, width:'100%' }}>
+              <span style={{ fontSize:24 }}>📋</span>
+              <div style={{ flex:1 }}>
+                <p style={{ fontWeight:700, fontSize:14, color:'#581c87', margin:0 }}>Trámites</p>
+                <p style={{ fontSize:12, color:'#6b7280', margin:0 }}>Guías de documentación y gestiones</p>
+              </div>
+              <span style={{ color:'#9ca3af' }}>→</span>
+            </button>
+            <button onClick={() => setPantalla('chat')} style={{ background:'#fff7ed', border:'1px solid #fed7aa', borderRadius:14, padding:'14px 16px', cursor:'pointer', fontFamily:'inherit', display:'flex', alignItems:'center', gap:12, textAlign:'left' as const, width:'100%' }}>
+              <span style={{ fontSize:24 }}>🤖</span>
+              <div style={{ flex:1 }}>
+                <p style={{ fontWeight:700, fontSize:14, color:'#7c2d12', margin:0 }}>Chat IA</p>
+                <p style={{ fontSize:12, color:'#6b7280', margin:0 }}>Resuelve tus dudas con inteligencia artificial</p>
+              </div>
+              <span style={{ color:'#9ca3af' }}>→</span>
+            </button>
             {editSituacion && (
               <div style={{ background:'#eff6ff', border:'1px solid #bfdbfe', borderRadius:16, padding:16 }}>
                 <p style={{ fontWeight:700, fontSize:14, color:'#1e3a8a', margin:'0 0 8px' }}>📋 Según tu situación:</p>
@@ -2564,9 +2580,9 @@ export default function Home() {
         {[
           { id:'inicio', icon:'🏠', label:'Inicio' },
           { id:'empleo', icon:'💼', label:'Trabajo' },
+          { id:'vivienda', icon:'🏠', label:'Vivienda' },
           { id:'comunidad', icon:'👥', label:'Comunidad' },
-          { id:'chat', icon:'🤖', label:'Chat IA' },
-          { id:'tramites', icon:'📋', label:'Trámites' },
+          { id:'perfil', icon:'👤', label:'Perfil' },
         ].map(({ id, icon, label }) => (
           <button key={id} onClick={() => setPantalla(id as Pantalla)} style={{ flex:1, padding:'8px 0 6px', display:'flex', flexDirection:'column', alignItems:'center', gap:2, background:'none', border:'none', cursor:'pointer', borderTop:pantalla===id?'2px solid #1B4FCC':'2px solid transparent', fontFamily:'inherit' }}>
             <span style={{ fontSize:18 }}>{icon}</span>
