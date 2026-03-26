@@ -19,9 +19,10 @@ export async function POST(req: NextRequest) {
 
   const adminClient = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { global: { headers: { Authorization: `Bearer ${token}` } } }
   )
-  const { data: { user } } = await adminClient.auth.getUser(token)
+  const { data: { user } } = await adminClient.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { plan, email, org_id } = await req.json()

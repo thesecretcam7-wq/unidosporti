@@ -11,11 +11,12 @@ export async function POST(req: NextRequest) {
   const token = req.headers.get('authorization')?.replace('Bearer ', '')
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const adminClient = createClient(
+  const client = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { global: { headers: { Authorization: `Bearer ${token}` } } }
   )
-  const { data: { user } } = await adminClient.auth.getUser(token)
+  const { data: { user } } = await client.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { org_id, org_nombre, titulo, descripcion, cta, url, imagen_url, tipo_pantalla, duracion, precio, email } = await req.json()
@@ -25,7 +26,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Pre-create the ad record in pending state
-  const { data: ad, error: adError } = await adminClient.from('anuncios_nativos').insert({
+  const { data: ad, error: adError } = await client.from('anuncios_nativos').insert({
     org_id,
     org_nombre,
     titulo,
@@ -41,7 +42,7 @@ export async function POST(req: NextRequest) {
   }).select().single()
 
   if (adError || !ad) {
-    return NextResponse.json({ error: 'Error creating ad record' }, { status: 500 })
+    return NextResponse.json({ error: adError?.message || 'Error creating ad record' }, { status: 500 })
   }
 
   const duracionLabel = duracion === 'semana' ? '1 semana' : duracion === 'mes' ? '1 mes' : '1 mes · todas las pantallas'
@@ -54,7 +55,7 @@ export async function POST(req: NextRequest) {
     line_items: [{
       price_data: {
         currency: 'eur',
-        unit_amount: precio * 100, // cents
+        unit_amount: precio * 100,
         product_data: {
           name: `Publicidad segmentada — ${duracionLabel}`,
           description: `Pantalla: ${pantLabel} · "${titulo}" · ${org_nombre}`,

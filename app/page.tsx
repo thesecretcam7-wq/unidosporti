@@ -667,6 +667,7 @@ export default function Home() {
       })
       const d = await r.json()
       if (d.url) window.location.href = d.url
+      else alert(`Error: ${d.error || 'No se pudo iniciar el pago'}`)
     } catch { alert('Error al iniciar el pago del anuncio') }
     setAnuncioSaving(false)
   }
