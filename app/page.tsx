@@ -195,6 +195,7 @@ export default function Home() {
   const [anuncioSaving, setAnuncioSaving] = useState(false)
   const [adSuccess, setAdSuccess] = useState(false)
   const [adsPendientes, setAdsPendientes] = useState<CampanaAd[]>([])
+  const [adminStats, setAdminStats] = useState<{ totalUsuarios:number; activosHoy:number; totalMensajes:number; totalOrgs:number; totalEmpleos:number; totalViviendas:number } | null>(null)
 
   useEffect(() => {
     const key = 'chat_' + new Date().toDateString()
@@ -344,6 +345,15 @@ export default function Home() {
     const d = await r.json()
     setPendienteEmpleos(d.empleos ?? [])
     setPendienteViviendas(d.viviendas ?? [])
+  }
+
+  async function fetchAdminStats() {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) return
+    const r = await fetch('/api/admin/stats', { headers: { authorization: `Bearer ${session.access_token}` } })
+    if (!r.ok) return
+    const d = await r.json()
+    setAdminStats(d)
   }
 
   async function moderate(table: string, id: string, action: 'aprobar' | 'rechazar' | 'destacar' | 'no-destacar') {
@@ -1172,15 +1182,27 @@ export default function Home() {
               <h2 style={{ fontSize:20, fontWeight:800, margin:'0 0 4px' }}>⚙️ Panel Admin</h2>
               <p style={{ fontSize:13, opacity:0.9, margin:0 }}>Estadísticas y gestión de UnidosPorTi</p>
             </div>
+            {!adminStats && (
+              <button onClick={fetchAdminStats} style={{ ...btn, background:'#312e81' }}>Cargar estadísticas reales →</button>
+            )}
+            {adminStats && (
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
-              {[{ n:'1.247', label:'Usuarios', icon:'👥' },{ n:'89', label:'Activos hoy', icon:'🟢' },{ n:'4.832', label:'Consultas IA', icon:'🤖' },{ n:'12', label:'ONGs', icon:'🏛️' }].map(({ n, label, icon }) => (
+              {[
+                { n: String(adminStats.totalUsuarios), label:'Usuarios', icon:'👥' },
+                { n: String(adminStats.activosHoy), label:'Activos hoy', icon:'🟢' },
+                { n: String(adminStats.totalMensajes), label:'Mensajes comunidad', icon:'💬' },
+                { n: String(adminStats.totalOrgs), label:'ONGs', icon:'🏛️' },
+                { n: String(adminStats.totalEmpleos), label:'Empleos activos', icon:'💼' },
+                { n: String(adminStats.totalViviendas), label:'Viviendas activas', icon:'🏠' },
+              ].map(({ n, label, icon }) => (
                 <div key={label} style={{ background:'#fff', border:'1px solid #e5e7eb', borderRadius:16, padding:'14px', textAlign:'center' }}>
                   <p style={{ fontSize:24, margin:'0 0 4px' }}>{icon}</p>
-                  <p style={{ fontWeight:900, fontSize:22, color:'#1B4FCC', margin:'0 0 2px' }}>{n}</p>
+                  <p style={{ fontWeight:900, fontSize:22, color:'#2563EB', margin:'0 0 2px' }}>{n}</p>
                   <p style={{ fontSize:12, color:'#6b7280', margin:0 }}>{label}</p>
                 </div>
               ))}
             </div>
+            )}
             <div style={{ background:'#fff', border:'1px solid #e5e7eb', borderRadius:16, padding:16 }}>
               <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
                 <p style={{ fontWeight:700, fontSize:15, margin:0, color:'#111' }}>🕐 Moderación pendiente</p>
