@@ -8,7 +8,7 @@ const supabase = createClient(
   { auth: { persistSession: true, detectSessionInUrl: true, autoRefreshToken: true } }
 )
 
-type Pantalla = 'inicio' | 'empleo' | 'vivienda' | 'chat' | 'tramites' | 'perfil' | 'calculadora' | 'contrato' | 'nomina' | 'notificaciones' | 'admin' | 'publicar-empleo' | 'publicar-vivienda' | 'mis-publicaciones' | 'comunidad' | 'mensajes' | 'conversacion' | 'premium' | 'citas' | 'nueva-cita' | 'alertas' | 'ong-dashboard' | 'ong-registro' | 'ong-recursos' | 'ong-nuevo-recurso' | 'ong-alertas-b2b' | 'ong-stats' | 'ong-anuncios' | 'ong-nuevo-anuncio' | 'cv-generador'
+type Pantalla = 'inicio' | 'empleo' | 'vivienda' | 'chat' | 'tramites' | 'perfil' | 'calculadora' | 'contrato' | 'nomina' | 'notificaciones' | 'admin' | 'publicar-empleo' | 'publicar-vivienda' | 'mis-publicaciones' | 'comunidad' | 'mensajes' | 'conversacion' | 'premium' | 'citas' | 'nueva-cita' | 'alertas' | 'ong-dashboard' | 'ong-registro' | 'ong-recursos' | 'ong-nuevo-recurso' | 'ong-alertas-b2b' | 'ong-stats' | 'ong-anuncios' | 'ong-nuevo-anuncio' | 'cv-generador' | 'foro' | 'foro-pregunta'
 type Ruta = 'arraigo_social' | 'arraigo_laboral' | 'arraigo_familiar'
 type Msg = { role: string; content: string }
 
@@ -210,6 +210,19 @@ export default function Home() {
   const [cvResult, setCvResult] = useState('')
   const [cvLoading, setCvLoading] = useState(false)
   const [cvCopiado, setCvCopiado] = useState(false)
+  const [donCopiado, setDonCopiado] = useState('')
+  const [donLoading, setDonLoading] = useState(false)
+  const [avatarUrl, setAvatarUrl] = useState('')
+  const [avatarUploading, setAvatarUploading] = useState(false)
+  const [foroPreguntas, setForoPreguntas] = useState<any[]>([])
+  const [foroRespuestas, setForoRespuestas] = useState<any[]>([])
+  const [foroActual, setForoActual] = useState<any>(null)
+  const [foroNuevaTitulo, setForoNuevaTitulo] = useState('')
+  const [foroNuevaContenido, setForoNuevaContenido] = useState('')
+  const [foroNuevaRespuesta, setForoNuevaRespuesta] = useState('')
+  const [foroLoading, setForoLoading] = useState(false)
+  const [foroSaving, setForoSaving] = useState(false)
+  const [foroShowForm, setForoShowForm] = useState(false)
 
   useEffect(() => {
     const key = 'chat_' + new Date().toDateString()
@@ -235,7 +248,9 @@ export default function Home() {
   }, [])
 
   useEffect(() => {
+    const fallback = setTimeout(() => setSessionLoading(false), 5000)
     supabase.auth.getSession().then(async ({ data }) => {
+      clearTimeout(fallback)
       const email = data.session?.user?.email ?? null
       setUserEmail(email)
       if (data.session?.user) {
@@ -250,7 +265,7 @@ export default function Home() {
         fetchRecursosPublicos()
         fetchAnunciosNativos()
       } else setSessionLoading(false)
-    })
+    }).catch(() => { clearTimeout(fallback); setSessionLoading(false) })
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_e, session) => {
       setUserEmail(session?.user?.email ?? null)
       if (session?.user) {
@@ -544,16 +559,15 @@ export default function Home() {
   async function saveAlerta() {
     if (!userId) return
     setAlertaSaving(true)
-    try {
-      await supabase.from('alertas').insert({
-        user_id: userId, tipo: formAlerta.tipo,
-        sector: formAlerta.sector || null,
-        ciudad: formAlerta.ciudad || null,
-        precio_max: formAlerta.precio_max ? Number(formAlerta.precio_max) : null,
-      })
-      setFormAlerta(EMPTY_ALERTA)
-      await fetchAlertas(userId)
-    } catch { alert('Error al guardar alerta') }
+    const { error } = await supabase.from('alertas').insert({
+      user_id: userId, tipo: formAlerta.tipo,
+      sector: formAlerta.sector || null,
+      ciudad: formAlerta.ciudad || null,
+      precio_max: formAlerta.precio_max ? Number(formAlerta.precio_max) : null,
+    })
+    if (error) { alert('Error al guardar: ' + error.message); setAlertaSaving(false); return }
+    setFormAlerta(EMPTY_ALERTA)
+    await fetchAlertas(userId)
     setAlertaSaving(false)
   }
 
@@ -697,12 +711,13 @@ export default function Home() {
     if (pantalla === 'ong-anuncios') { fetchMiOrg(userId); fetchMisAnuncios() }
     if (pantalla === 'admin') { fetchAdsPendientes(); fetchPendientes() }
     if (pantalla === 'tramites') fetchRecursosPublicos()
+    if (pantalla === 'foro') fetchForo()
   }, [pantalla])
 
   async function loadProfile(userId: string) {
     try {
       const { data } = await supabase.from('profiles').select('*').eq('id', userId).single()
-      if (data) { setEditNombre(data.nombre||''); setEditPais(data.pais||''); setEditCiudad(data.ciudad||''); setEditSituacion(data.situacion||''); setUserPlan(data.plan||'free') }
+      if (data) { setEditNombre(data.nombre||''); setEditPais(data.pais||''); setEditCiudad(data.ciudad||''); setEditSituacion(data.situacion||''); setUserPlan(data.plan||'free'); setAvatarUrl(data.avatar_url||'') }
     } catch {}
     setSessionLoading(false)
   }
@@ -752,6 +767,74 @@ export default function Home() {
       if (d.url) window.location.href = d.url
     } catch { alert('Error al iniciar el pago') }
     setPremiumLoading(false)
+  }
+
+  async function uploadAvatar(file: File) {
+    setAvatarUploading(true)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      const ext = file.name.split('.').pop() || 'jpg'
+      const path = `${user.id}.${ext}`
+      const { error: upErr } = await supabase.storage.from('avatars').upload(path, file, { upsert: true })
+      if (upErr) { alert('Error al subir la foto: ' + upErr.message); return }
+      const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(path)
+      await supabase.from('profiles').upsert({ id: user.id, avatar_url: publicUrl, updated_at: new Date().toISOString() })
+      setAvatarUrl(publicUrl)
+    } catch { alert('Error al subir la foto') }
+    setAvatarUploading(false)
+  }
+
+  async function fetchForo() {
+    setForoLoading(true)
+    const { data } = await supabase.from('foro_preguntas').select('*, foro_respuestas(count)').order('created_at', { ascending: false }).limit(60)
+    setForoPreguntas(data || [])
+    setForoLoading(false)
+  }
+
+  async function abrirPregunta(pregunta: any) {
+    setForoActual(pregunta)
+    setForoNuevaRespuesta('')
+    setPantalla('foro-pregunta')
+    const { data } = await supabase.from('foro_respuestas').select('*').eq('pregunta_id', pregunta.id).order('created_at', { ascending: true })
+    setForoRespuestas(data || [])
+  }
+
+  async function publicarPregunta() {
+    if (!foroNuevaTitulo.trim() || !foroNuevaContenido.trim()) return
+    setForoSaving(true)
+    const { error } = await supabase.from('foro_preguntas').insert({ user_id: userId, user_nombre: editNombre || userEmail, titulo: foroNuevaTitulo.trim(), contenido: foroNuevaContenido.trim() })
+    if (!error) { setForoNuevaTitulo(''); setForoNuevaContenido(''); setForoShowForm(false); fetchForo() }
+    setForoSaving(false)
+  }
+
+  async function publicarRespuesta() {
+    if (!foroNuevaRespuesta.trim() || !foroActual) return
+    setForoSaving(true)
+    const { error } = await supabase.from('foro_respuestas').insert({ pregunta_id: foroActual.id, user_id: userId, user_nombre: editNombre || userEmail, contenido: foroNuevaRespuesta.trim() })
+    if (!error) {
+      setForoNuevaRespuesta('')
+      const { data } = await supabase.from('foro_respuestas').select('*').eq('pregunta_id', foroActual.id).order('created_at', { ascending: true })
+      setForoRespuestas(data || [])
+    }
+    setForoSaving(false)
+  }
+
+  async function iniciarDonacion(euros: number) {
+    setDonLoading(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) return
+      const r = await fetch('/api/stripe/donate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ euros }),
+      })
+      const d = await r.json()
+      if (d.url) window.location.href = d.url
+      else alert('Error al procesar la donación')
+    } catch { alert('Error al procesar la donación') }
+    setDonLoading(false)
   }
 
   async function analizarContrato() {
@@ -896,8 +979,10 @@ export default function Home() {
             <span style={{ fontSize:20 }}>🔔</span>
             {notifCount > 0 && <span style={{ position:'absolute' as const, top:2, right:2, background:'#ef4444', color:'#fff', borderRadius:'50%', width:14, height:14, fontSize:9, display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700 }}>{notifCount}</span>}
           </button>
-          <button onClick={() => setPantalla('perfil')} style={{ background:'#2563EB', border:'none', borderRadius:'50%', width:34, height:34, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-            <span style={{ color:'#fff', fontWeight:800, fontSize:14 }}>{editNombre ? editNombre.trim()[0].toUpperCase() : userEmail ? userEmail[0].toUpperCase() : '?'}</span>
+          <button onClick={() => setPantalla('perfil')} style={{ background:'#2563EB', border:'2px solid #fff', borderRadius:'50%', width:34, height:34, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, overflow:'hidden', padding:0 }}>
+            {avatarUrl
+              ? <img src={avatarUrl} alt="avatar" style={{ width:'100%', height:'100%', objectFit:'cover' }} />
+              : <span style={{ color:'#fff', fontWeight:800, fontSize:14 }}>{editNombre ? editNombre.trim()[0].toUpperCase() : userEmail ? userEmail[0].toUpperCase() : '?'}</span>}
           </button>
         </div>
       </header>
@@ -986,7 +1071,17 @@ export default function Home() {
         {pantalla === 'perfil' && (
           <div style={{ padding:16, display:'flex', flexDirection:'column', gap:16 }}>
             <div style={{ background:'linear-gradient(135deg,#1e40af,#2563EB)', borderRadius:20, padding:'24px', textAlign:'center', color:'#fff' }}>
-              <div style={{ width:64, height:64, background:'rgba(255,255,255,0.2)', borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 12px', fontSize:28, fontWeight:800 }}>{editNombre ? editNombre.trim()[0].toUpperCase() : userEmail ? userEmail[0].toUpperCase() : '?'}</div>
+              <div style={{ position:'relative' as const, width:72, height:72, margin:'0 auto 12px' }}>
+                <div style={{ width:72, height:72, borderRadius:'50%', overflow:'hidden', background:'rgba(255,255,255,0.2)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:28, fontWeight:800, border:'2px solid rgba(255,255,255,0.4)' }}>
+                  {avatarUrl
+                    ? <img src={avatarUrl} alt="avatar" style={{ width:'100%', height:'100%', objectFit:'cover' }} />
+                    : (editNombre ? editNombre.trim()[0].toUpperCase() : userEmail ? userEmail[0].toUpperCase() : '?')}
+                </div>
+                <label style={{ position:'absolute' as const, bottom:0, right:0, background:'#fff', border:'2px solid #2563EB', borderRadius:'50%', width:22, height:22, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', fontSize:11 }}>
+                  {avatarUploading ? '⏳' : '📷'}
+                  <input type="file" accept="image/*" style={{ display:'none' }} onChange={e => { if (e.target.files?.[0]) uploadAvatar(e.target.files[0]) }} />
+                </label>
+              </div>
               <p style={{ fontWeight:800, fontSize:18, margin:'0 0 4px' }}>{editNombre || 'Mi Perfil'}</p>
               <p style={{ fontSize:13, opacity:0.8, margin:0 }}>{userEmail}</p>
             </div>
@@ -1047,6 +1142,14 @@ export default function Home() {
               </div>
               <span style={{ color:'#9ca3af' }}>→</span>
             </button>
+            <button onClick={() => { setForoShowForm(false); setPantalla('foro') }} style={{ background:'linear-gradient(135deg,#f0f9ff,#e0f2fe)', border:'1px solid #7dd3fc', borderRadius:14, padding:'14px 16px', cursor:'pointer', fontFamily:'inherit', display:'flex', alignItems:'center', gap:12, textAlign:'left' as const, width:'100%' }}>
+              <span style={{ fontSize:24 }}>💬</span>
+              <div style={{ flex:1 }}>
+                <p style={{ fontWeight:700, fontSize:14, color:'#0c4a6e', margin:0 }}>Foro de la comunidad</p>
+                <p style={{ fontSize:12, color:'#6b7280', margin:0 }}>Pregunta y comparte con otros migrantes</p>
+              </div>
+              <span style={{ color:'#9ca3af' }}>→</span>
+            </button>
             <button onClick={() => { setCvResult(''); setPantalla('cv-generador') }} style={{ background:'linear-gradient(135deg,#ecfdf5,#d1fae5)', border:'1px solid #6ee7b7', borderRadius:14, padding:'14px 16px', cursor:'pointer', fontFamily:'inherit', display:'flex', alignItems:'center', gap:12, textAlign:'left' as const, width:'100%' }}>
               <span style={{ fontSize:24 }}>📄</span>
               <div style={{ flex:1 }}>
@@ -1084,6 +1187,59 @@ export default function Home() {
                 </p>
               </div>
             )}
+            {/* Donaciones */}
+            <div style={{ background:'linear-gradient(135deg,#fff7ed,#fef3c7)', border:'1px solid #fcd34d', borderRadius:16, padding:16 }}>
+              <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:14 }}>
+                <span style={{ fontSize:26 }}>❤️</span>
+                <div>
+                  <p style={{ fontWeight:800, fontSize:15, color:'#92400e', margin:0 }}>Apoya a UnidosPorTi</p>
+                  <p style={{ fontSize:12, color:'#b45309', margin:'2px 0 0' }}>Tu donación ayuda a miles de migrantes en España</p>
+                </div>
+              </div>
+              {/* Bizum */}
+              <div style={{ background:'#fff', border:'1px solid #e5e7eb', borderRadius:12, padding:'11px 14px', marginBottom:8, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                  <div style={{ background:'#3b82f6', borderRadius:10, width:34, height:34, display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontWeight:900, fontSize:13, flexShrink:0 }}>B</div>
+                  <div>
+                    <p style={{ fontWeight:700, fontSize:13, color:'#111', margin:0 }}>Bizum</p>
+                    <p style={{ fontSize:12, color:'#6b7280', margin:0 }}>624 391 875</p>
+                  </div>
+                </div>
+                <button onClick={() => { navigator.clipboard.writeText('624391875'); setDonCopiado('bizum'); setTimeout(()=>setDonCopiado(''),2000) }}
+                  style={{ background:donCopiado==='bizum'?'#059669':'#f3f4f6', border:'none', borderRadius:8, padding:'6px 12px', fontSize:12, fontWeight:700, color:donCopiado==='bizum'?'#fff':'#374151', cursor:'pointer', fontFamily:'inherit', flexShrink:0 }}>
+                  {donCopiado==='bizum' ? '✓ Copiado' : 'Copiar nº'}
+                </button>
+              </div>
+              {/* Transferencia */}
+              <div style={{ background:'#fff', border:'1px solid #e5e7eb', borderRadius:12, padding:'11px 14px', marginBottom:8, display:'flex', alignItems:'center', justifyContent:'space-between', gap:8 }}>
+                <div style={{ display:'flex', alignItems:'center', gap:10, minWidth:0 }}>
+                  <div style={{ background:'#6366f1', borderRadius:10, width:34, height:34, display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontWeight:900, fontSize:14, flexShrink:0 }}>€</div>
+                  <div style={{ minWidth:0 }}>
+                    <p style={{ fontWeight:700, fontSize:13, color:'#111', margin:0 }}>Transferencia bancaria</p>
+                    <p style={{ fontSize:11, color:'#6b7280', margin:0, fontFamily:'monospace', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>ES76 0049 1500 0510 0123 4567</p>
+                  </div>
+                </div>
+                <button onClick={() => { navigator.clipboard.writeText('ES7600491500051001234567'); setDonCopiado('iban'); setTimeout(()=>setDonCopiado(''),2000) }}
+                  style={{ background:donCopiado==='iban'?'#059669':'#f3f4f6', border:'none', borderRadius:8, padding:'6px 12px', fontSize:12, fontWeight:700, color:donCopiado==='iban'?'#fff':'#374151', cursor:'pointer', fontFamily:'inherit', flexShrink:0 }}>
+                  {donCopiado==='iban' ? '✓ Copiado' : 'Copiar'}
+                </button>
+              </div>
+              {/* Tarjeta Stripe */}
+              <div style={{ background:'#fff', border:'1px solid #e5e7eb', borderRadius:12, padding:'11px 14px', marginBottom:8 }}>
+                <p style={{ fontSize:12, fontWeight:700, color:'#374151', margin:'0 0 8px', display:'flex', alignItems:'center', gap:6 }}>
+                  <span>💳</span> Pago con tarjeta
+                </p>
+                <div style={{ display:'flex', gap:8 }}>
+                  {[3, 10, 20].map(eur => (
+                    <button key={eur} onClick={() => iniciarDonacion(eur)} disabled={donLoading}
+                      style={{ flex:1, background:donLoading?'#f3f4f6':'#1B4FCC', color:donLoading?'#9ca3af':'#fff', border:'none', borderRadius:10, padding:'10px 0', fontSize:15, fontWeight:800, cursor:donLoading?'default':'pointer', fontFamily:'inherit' }}>
+                      {eur}€
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
             <button onClick={logout} style={{ background:'#fff', border:'1px solid #E2E8F0', borderRadius:14, padding:'13px 16px', cursor:'pointer', fontFamily:'inherit', display:'flex', alignItems:'center', gap:12, textAlign:'left' as const, width:'100%' }}>
               <span style={{ fontSize:20 }}>🚪</span>
               <p style={{ fontWeight:600, fontSize:14, color:'#ef4444', margin:0 }}>Cerrar sesión</p>
@@ -2795,6 +2951,12 @@ export default function Home() {
 
             {cvResult && (
               <div style={{ background:'#fff', border:'1px solid #E2E8F0', borderRadius:16, padding:16, display:'flex', flexDirection:'column', gap:12 }}>
+                {avatarUrl && (
+                  <div style={{ display:'flex', alignItems:'center', gap:12, padding:'10px 12px', background:'#F0FDF4', border:'1px solid #BBF7D0', borderRadius:12 }}>
+                    <img src={avatarUrl} alt="Foto CV" style={{ width:52, height:52, borderRadius:'50%', objectFit:'cover', border:'2px solid #059669' }} />
+                    <p style={{ fontSize:12, color:'#065f46', margin:0, lineHeight:1.5 }}>📎 <strong>Tu foto de perfil</strong> — pégala manualmente en la cabecera del CV en Word o Google Docs.</p>
+                  </div>
+                )}
                 <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
                   <p style={{ fontWeight:700, fontSize:14, color:'#0F172A', margin:0 }}>📄 Tu currículum generado</p>
                   <button
@@ -2812,6 +2974,102 @@ export default function Home() {
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Foro — lista de preguntas */}
+        {pantalla === 'foro' && (
+          <div style={{ padding:16, display:'flex', flexDirection:'column', gap:14 }}>
+            <div style={{ background:'linear-gradient(135deg,#1e40af,#2563EB)', borderRadius:20, padding:'20px 24px', color:'#fff' }}>
+              <h2 style={{ fontSize:20, fontWeight:800, margin:'0 0 4px' }}>💬 Foro de la comunidad</h2>
+              <p style={{ fontSize:13, opacity:0.9, margin:0 }}>Pregunta y aprende junto a otros migrantes</p>
+            </div>
+            <button onClick={() => setForoShowForm(f => !f)} style={{ ...btn, background: foroShowForm ? '#e5e7eb' : '#1B4FCC', color: foroShowForm ? '#374151' : '#fff' }}>
+              {foroShowForm ? '✕ Cancelar' : '+ Hacer una pregunta'}
+            </button>
+            {foroShowForm && (
+              <div style={{ background:'#fff', border:'1px solid #E2E8F0', borderRadius:16, padding:16, display:'flex', flexDirection:'column', gap:12 }}>
+                <p style={{ fontWeight:700, fontSize:14, color:'#0F172A', margin:0 }}>Nueva pregunta</p>
+                <div>
+                  <p style={{ fontSize:12, fontWeight:600, color:'#374151', margin:'0 0 5px' }}>Título</p>
+                  <input value={foroNuevaTitulo} onChange={e => setForoNuevaTitulo(e.target.value)} placeholder="Resume tu pregunta en una frase..." style={{ width:'100%', border:'1px solid #d1d5db', borderRadius:10, padding:'10px 12px', fontSize:14, fontFamily:'inherit', outline:'none', boxSizing:'border-box' as const }} />
+                </div>
+                <div>
+                  <p style={{ fontSize:12, fontWeight:600, color:'#374151', margin:'0 0 5px' }}>Detalles</p>
+                  <textarea value={foroNuevaContenido} onChange={e => setForoNuevaContenido(e.target.value)} placeholder="Explica tu situación con más detalle..." rows={4} style={{ width:'100%', border:'1px solid #d1d5db', borderRadius:10, padding:'10px 12px', fontSize:14, fontFamily:'inherit', outline:'none', resize:'none' as const, boxSizing:'border-box' as const }} />
+                </div>
+                <button onClick={publicarPregunta} disabled={foroSaving || !foroNuevaTitulo.trim() || !foroNuevaContenido.trim()} style={{ ...btn, background:'#059669', opacity:(foroSaving||!foroNuevaTitulo.trim()||!foroNuevaContenido.trim())?0.5:1 }}>
+                  {foroSaving ? 'Publicando...' : '✓ Publicar pregunta'}
+                </button>
+              </div>
+            )}
+            {foroLoading && <p style={{ textAlign:'center', color:'#9ca3af', fontSize:14, padding:20 }}>Cargando...</p>}
+            {!foroLoading && foroPreguntas.length === 0 && (
+              <div style={{ textAlign:'center', padding:32, color:'#9ca3af' }}>
+                <p style={{ fontSize:32, margin:'0 0 8px' }}>💬</p>
+                <p style={{ fontSize:14, margin:0 }}>Sé el primero en hacer una pregunta</p>
+              </div>
+            )}
+            {foroPreguntas.map((p: any) => {
+              const respCount = p.foro_respuestas?.[0]?.count ?? 0
+              const fecha = new Date(p.created_at).toLocaleDateString('es-ES', { day:'numeric', month:'short' })
+              return (
+                <button key={p.id} onClick={() => abrirPregunta(p)} style={{ background:'#fff', border:'1px solid #E2E8F0', borderRadius:14, padding:'14px 16px', cursor:'pointer', fontFamily:'inherit', textAlign:'left' as const, boxShadow:'0 1px 4px rgba(15,23,42,0.06)', display:'flex', flexDirection:'column', gap:6, width:'100%' }}>
+                  <p style={{ fontWeight:700, fontSize:14, color:'#0F172A', margin:0, lineHeight:1.4 }}>{p.titulo}</p>
+                  <p style={{ fontSize:12, color:'#6b7280', margin:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' as const }}>{p.contenido}</p>
+                  <div style={{ display:'flex', gap:10, alignItems:'center', marginTop:2 }}>
+                    <span style={{ fontSize:11, color:'#9ca3af' }}>{p.user_nombre || 'Anónimo'} · {fecha}</span>
+                    <span style={{ background: respCount > 0 ? '#DCFCE7' : '#F1F5F9', color: respCount > 0 ? '#059669' : '#6b7280', fontSize:11, fontWeight:700, padding:'2px 8px', borderRadius:20 }}>
+                      {respCount} {respCount === 1 ? 'respuesta' : 'respuestas'}
+                    </span>
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+        )}
+
+        {/* Foro — detalle pregunta */}
+        {pantalla === 'foro-pregunta' && foroActual && (
+          <div style={{ padding:16, display:'flex', flexDirection:'column', gap:14 }}>
+            <button onClick={() => setPantalla('foro')} style={{ background:'none', border:'none', cursor:'pointer', fontFamily:'inherit', fontSize:13, color:'#2563EB', fontWeight:600, textAlign:'left' as const, padding:0 }}>← Volver al foro</button>
+            {/* Pregunta */}
+            <div style={{ background:'#fff', border:'1px solid #E2E8F0', borderRadius:16, padding:16, display:'flex', flexDirection:'column', gap:10 }}>
+              <div style={{ display:'flex', gap:10, alignItems:'flex-start' }}>
+                <div style={{ width:36, height:36, borderRadius:'50%', background:'#EFF6FF', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:800, fontSize:14, color:'#2563EB', flexShrink:0 }}>
+                  {(foroActual.user_nombre || '?')[0].toUpperCase()}
+                </div>
+                <div style={{ flex:1 }}>
+                  <p style={{ fontWeight:700, fontSize:15, color:'#0F172A', margin:'0 0 6px', lineHeight:1.4 }}>{foroActual.titulo}</p>
+                  <p style={{ fontSize:13, color:'#374151', margin:'0 0 8px', lineHeight:1.6 }}>{foroActual.contenido}</p>
+                  <p style={{ fontSize:11, color:'#9ca3af', margin:0 }}>{foroActual.user_nombre || 'Anónimo'} · {new Date(foroActual.created_at).toLocaleDateString('es-ES', { day:'numeric', month:'long', year:'numeric' })}</p>
+                </div>
+              </div>
+            </div>
+            {/* Respuestas */}
+            <p style={{ fontWeight:700, fontSize:14, color:'#374151', margin:0 }}>{foroRespuestas.length} {foroRespuestas.length === 1 ? 'respuesta' : 'respuestas'}</p>
+            {foroRespuestas.map((r: any) => (
+              <div key={r.id} style={{ background:'#F8FAFC', border:'1px solid #E2E8F0', borderRadius:14, padding:'12px 14px', display:'flex', gap:10 }}>
+                <div style={{ width:30, height:30, borderRadius:'50%', background:'#DCFCE7', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:800, fontSize:12, color:'#059669', flexShrink:0 }}>
+                  {(r.user_nombre || '?')[0].toUpperCase()}
+                </div>
+                <div style={{ flex:1 }}>
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:4 }}>
+                    <p style={{ fontWeight:700, fontSize:12, color:'#374151', margin:0 }}>{r.user_nombre || 'Anónimo'}</p>
+                    <p style={{ fontSize:11, color:'#9ca3af', margin:0 }}>{new Date(r.created_at).toLocaleDateString('es-ES', { day:'numeric', month:'short' })}</p>
+                  </div>
+                  <p style={{ fontSize:13, color:'#0F172A', margin:0, lineHeight:1.6 }}>{r.contenido}</p>
+                </div>
+              </div>
+            ))}
+            {/* Nueva respuesta */}
+            <div style={{ background:'#fff', border:'1px solid #E2E8F0', borderRadius:16, padding:14, display:'flex', flexDirection:'column', gap:10 }}>
+              <p style={{ fontWeight:700, fontSize:13, color:'#374151', margin:0 }}>Tu respuesta</p>
+              <textarea value={foroNuevaRespuesta} onChange={e => setForoNuevaRespuesta(e.target.value)} placeholder="Comparte tu experiencia o conocimiento..." rows={3} style={{ width:'100%', border:'1px solid #d1d5db', borderRadius:10, padding:'10px 12px', fontSize:14, fontFamily:'inherit', outline:'none', resize:'none' as const, boxSizing:'border-box' as const }} />
+              <button onClick={publicarRespuesta} disabled={foroSaving || !foroNuevaRespuesta.trim()} style={{ ...btn, background:'#1B4FCC', opacity:(foroSaving||!foroNuevaRespuesta.trim())?0.5:1 }}>
+                {foroSaving ? 'Publicando...' : '↩ Responder'}
+              </button>
+            </div>
           </div>
         )}
 
