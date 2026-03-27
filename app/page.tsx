@@ -257,6 +257,7 @@ export default function Home() {
         setUserId(data.session.user.id)
         await loadProfile(data.session.user.id)
         await fetchDbListings(data.session.user.id)
+        setSessionLoading(false)
         fetchMensajesNoLeidos(data.session.user.id)
         fetchCitas(data.session.user.id)
         fetchValoraciones()
@@ -272,6 +273,7 @@ export default function Home() {
         setUserId(session.user.id)
         await loadProfile(session.user.id)
         await fetchDbListings(session.user.id)
+        setSessionLoading(false)
         fetchMensajesNoLeidos(session.user.id)
         fetchCitas(session.user.id)
         fetchValoraciones()
@@ -406,9 +408,13 @@ export default function Home() {
       setComunidadMsgs(data ?? [])
       setTimeout(() => comunidadBottomRef.current?.scrollIntoView({ behavior:'smooth' }), 100)
     })
+    const reloadMsgs = () => supabase.from('chat_comunidad').select('*').order('created_at', { ascending:true }).limit(80).then(({ data }) => { if (data) setComunidadMsgs(data) })
     channel = supabase.channel('chat_comunidad_rt').on('postgres_changes' as any, { event:'INSERT', schema:'public', table:'chat_comunidad' }, (payload: any) => {
       const newMsg = payload.new as ChatMsg
-      setComunidadMsgs(prev => [...prev, newMsg])
+      setComunidadMsgs(prev => {
+        if (prev.some(m => m.id === newMsg.id)) return prev
+        return [...prev, newMsg]
+      })
       setTimeout(() => comunidadBottomRef.current?.scrollIntoView({ behavior:'smooth' }), 50)
       if (newMsg.user_id !== userId) {
         try {
@@ -423,7 +429,9 @@ export default function Home() {
           o.start(ctx.currentTime); o.stop(ctx.currentTime + 0.25)
         } catch {}
       }
-    }).subscribe()
+    }).subscribe((status) => {
+      if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') reloadMsgs()
+    })
     return () => { if (channel) supabase.removeChannel(channel) }
   }, [pantalla])
 
@@ -432,8 +440,12 @@ export default function Home() {
     setComunidadSending(true)
     const texto = comunidadMsg.trim()
     setComunidadMsg('')
-    const { error } = await supabase.from('chat_comunidad').insert({ user_id:userId, user_email:userEmail, nombre:editNombre||null, mensaje:texto })
+    const { data: inserted, error } = await supabase.from('chat_comunidad').insert({ user_id:userId, user_email:userEmail, nombre:editNombre||null, mensaje:texto }).select().single()
     if (error) { alert('Error al enviar el mensaje: ' + error.message); setComunidadMsg(texto) }
+    else if (inserted) {
+      setComunidadMsgs(prev => prev.some(m => m.id === inserted.id) ? prev : [...prev, inserted])
+      setTimeout(() => comunidadBottomRef.current?.scrollIntoView({ behavior:'smooth' }), 50)
+    }
     setComunidadSending(false)
   }
 
@@ -719,7 +731,6 @@ export default function Home() {
       const { data } = await supabase.from('profiles').select('*').eq('id', userId).single()
       if (data) { setEditNombre(data.nombre||''); setEditPais(data.pais||''); setEditCiudad(data.ciudad||''); setEditSituacion(data.situacion||''); setUserPlan(data.plan||'free'); setAvatarUrl(data.avatar_url||'') }
     } catch {}
-    setSessionLoading(false)
   }
 
   async function saveProfile() {
