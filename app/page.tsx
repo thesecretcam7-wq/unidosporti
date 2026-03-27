@@ -247,6 +247,21 @@ export default function Home() {
     }
   }, [])
 
+  // Carga pública inmediata — usa native fetch para evitar problemas con el cliente Supabase JS
+  useEffect(() => {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    if (!url || !key) return
+    const headers = { 'apikey': key, 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' }
+    Promise.all([
+      fetch(`${url}/rest/v1/empleos_usuarios?select=*&status=eq.aprobado&order=created_at.desc`, { headers }).then(r => r.ok ? r.json() : []),
+      fetch(`${url}/rest/v1/viviendas_usuarios?select=*&status=eq.aprobado&order=created_at.desc`, { headers }).then(r => r.ok ? r.json() : []),
+    ]).then(([emp, viv]) => {
+      if (Array.isArray(emp) && emp.length > 0) setDbEmpleos(emp)
+      if (Array.isArray(viv) && viv.length > 0) setDbViviendas(viv)
+    }).catch(() => {})
+  }, [])
+
   useEffect(() => {
     const fallback = setTimeout(() => setSessionLoading(false), 5000)
     supabase.auth.getSession().then(async ({ data }) => {
